@@ -13,44 +13,49 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Flutter
+      - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
+          flutter-version: '3.19.6'
           channel: 'stable'
-          cache: true
 
       - name: Build Android APK
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.jvmargs=-Xmx3072m -XX:MaxMetaspaceSize=512m"
         run: |
-          # 1. Android ፈቃዶችን (Licenses) ማጽደቅ
-          yes | flutter doctor --android-licenses || true
-          
-          # 2. አዲስ የ Flutter መተግበሪያ መፍጠር
-          flutter create --org com.yared.tiktak --platforms android tiktak_app
+          # 1. የተረጋጋ የ Java Android መተግበሪያ መፍጠር
+          flutter create --org com.yared.tiktak --platforms android --android-language java tiktak_app
           cd tiktak_app
 
-          # 3. አስፈላጊ ጥቅሎችን መጨመር
+          # 2. አስፈላጊ ጥቅሎችን መጨመር
           flutter pub add video_player http cupertino_icons
 
-          # 4. የእኛን main.dart ኮድ መተካት
+          # 3. የሰራነውን main.dart ኮድ መተካት
           rm -f lib/main.dart
           cp ../main.dart lib/main.dart
 
-          # 5. APK በንጽህና መገንባት
-          flutter build apk --debug --no-tree-shake-icons
+          # 4. ለ video_player የሚያስፈልገውን minSdkVersion 21 በ Python ማስተካከል
+          python3 -c '
+          path = "android/app/build.gradle"
+          with open(path, "r") as f:
+              txt = f.read()
+          txt = txt.replace("minSdkVersion flutter.minSdkVersion", "minSdkVersion 21")
+          with open(path, "w") as f:
+              f.write(txt)
+          '
+
+          # 5. APK መገንባት
+          flutter build apk --debug
 
           # 6. የወጣውን APK ፋይል ማዘጋጀት
           mkdir -p ../build_output
           cp build/app/outputs/flutter-apk/app-debug.apk ../build_output/tiktak-app.apk
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: tiktak-android-apk

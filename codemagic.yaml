@@ -20,7 +20,7 @@ workflows:
             cp main.dart lib/main.dart
           fi
 
-          # 1. minSdkVersion 21 እና የካሜራ/ድምጽ ፍቃዶችን በንጽህና ማስተካከል
+          # 1. minSdkVersion 21 ማስተካከል
           python3 -c '
           import glob
           for g in glob.glob("android/app/build.gradle*"):
@@ -31,18 +31,16 @@ workflows:
               c = c.replace("minSdk = flutter.minSdk", "minSdk = 21")
               with open(g, "w") as f:
                   f.write(c)
+          '
 
+          # 2. የካሜራ እና ድምጽ ፍቃዶች መጨመር
+          python3 -c '
           manifest = "android/app/src/main/AndroidManifest.xml"
           with open(manifest, "r") as f:
               m = f.read()
-          perms = """
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-"""
+          perms = "<uses-permission android:name=\"android.permission.INTERNET\"/>\n<uses-permission android:name=\"android.permission.CAMERA\"/>\n<uses-permission android:name=\"android.permission.RECORD_AUDIO\"/>\n<uses-permission android:name=\"android.permission.READ_EXTERNAL_STORAGE\"/>\n"
           if "android.permission.CAMERA" not in m:
-              m = m.replace("<application", perms + "\n    <application")
+              m = m.replace("<application", perms + "<application")
           with open(manifest, "w") as f:
               f.write(m)
           '

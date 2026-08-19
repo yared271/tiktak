@@ -22,16 +22,28 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.6'
+          flutter-version: '3.22.0'
           channel: 'stable'
 
       - name: Build Android APK
         run: |
-          flutter create --org com.yared.tiktak tiktak_app
+          # 1. መተግበሪያውን መፍጠር
+          flutter create --org com.yared.tiktak --platforms android tiktak_app
           cd tiktak_app
+
+          # 2. ጥቅሎችን (Packages) መጨመር
           flutter pub add video_player http cupertino_icons
+
+          # 3. ለ video_player የሚያስፈልገውን minSdkVersion 21 ማስተካከል
+          echo "flutter.minSdkVersion=21" >> android/local.properties
+
+          # 4. የሰራነውን main.dart መተካት
           cp ../main.dart lib/main.dart
+
+          # 5. APK ፋይል መገንባት
           flutter build apk --debug
+
+          # 6. ፋይሉን ማዘጋጀት
           mkdir -p ../build_output
           cp build/app/outputs/flutter-apk/app-debug.apk ../build_output/tiktak-app.apk
 

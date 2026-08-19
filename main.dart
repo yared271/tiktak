@@ -22,7 +22,7 @@ class TikTokApp extends StatelessWidget {
   }
 }
 
-// ================= GLOBAL APP STATE =================
+// Global App State
 class AppState {
   static Map<String, String> userProfile = {
     "username": "@yared_official",
@@ -43,27 +43,15 @@ class AppState {
       "name": "Helen Berhe",
       "avatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
       "lastMsg": "ይህን ቪዲዮ እይው እስኪ 🎬"
-    },
-    {
-      "username": "@ethio_comedy",
-      "name": "Dawit Comedy",
-      "avatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
-      "lastMsg": "😂😂 በጣም ያስቃል!"
     }
   ];
 
-  static Set<String> followedUsers = {"@selam_official", "@ethiopian_beauty", "@ethio_comedy"};
+  static Set<String> followedUsers = {"@selam_official", "@ethiopian_beauty"};
   
   static Map<String, List<Map<String, dynamic>>> directChats = {
     "@selam_official": [
       {"sender": "@selam_official", "text": "ሰላም ያሬድ! እንዴት ነህ?", "time": "10:30 AM", "isVideo": false},
       {"sender": "@yared_official", "text": "ደህና ነኝ ሰላም! አዲሱን TikTak መተግበሪያ እየሞከርኩት ነው 🚀", "time": "10:32 AM", "isVideo": false}
-    ],
-    "@ethiopian_beauty": [
-      {"sender": "@ethiopian_beauty", "text": "መልካም ቀን ለሁላችንም 🇪🇹", "time": "Yesterday", "isVideo": false}
-    ],
-    "@ethio_comedy": [
-      {"sender": "@ethio_comedy", "text": "አዲሱን ኮሜዲ ቪዲዮ አይተኸዋል?", "time": "Yesterday", "isVideo": false}
     ]
   };
 
@@ -71,9 +59,6 @@ class AppState {
     "1": [
       {"user": "Dawit", "text": "ዋው ምርጥ የሀበሻ ጭፈራ ነው! 🔥", "time": "5m ago"},
       {"user": "Helen", "text": "አልባሳቱ በጣም ያምራል ✨", "time": "12m ago"}
-    ],
-    "2": [
-      {"user": "Amanuel", "text": "የኢትዮጵያ ውበት ድንቅ ነው 🇪🇹❤️", "time": "2m ago"}
     ]
   };
 
@@ -81,8 +66,7 @@ class AppState {
     {"name": "🇪🇹 Habesha Traditional Beat", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"},
     {"name": "🎵 Teddy Afro - Mar Eske Tuwaf", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"},
     {"name": "🔥 Rophnan - Gurage Electronic Mix", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"},
-    {"name": "🌍 The Weeknd - Blinding Lights", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4"},
-    {"name": "🥁 Tyla - Water (TikTok Dance)", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"}
+    {"name": "🌍 The Weeknd - Blinding Lights", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4"}
   ];
 
   static List<Map<String, dynamic>> defaultPosts = [
@@ -99,26 +83,14 @@ class AppState {
     },
     {
       "id": "2",
-      "type": "photo",
-      "imageUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800",
-      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+      "type": "video",
+      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
       "username": "@selam_official",
       "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
       "caption": "መልካም ቀን ከውቧ አዲስ አበባ 🌸✨ #EthiopiaGirl #HabeshaStyle",
       "songName": "🎵 Teddy Afro - Mar Eske Tuwaf",
       "likes": 8920,
       "tags": ["ethiopia girl", "habesha", "photo", "addis ababa"]
-    },
-    {
-      "id": "3",
-      "type": "video",
-      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-      "username": "@ethio_comedy",
-      "userAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
-      "caption": "የዘመኑ ቲክቶከሮች ሲቀወጥ 😂🤣 #comedy #funny #ethiopia",
-      "songName": "🎧 Funny Laugh Viral Sound Effect",
-      "likes": 12400,
-      "tags": ["comedy", "funny", "ethiopia", "viral"]
     }
   ];
 
@@ -171,7 +143,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-// ================= 1. HOME FEED SCREEN WITH FULL AUDIO & LIVE SYNC =================
+// ================= 1. FAST FULLSCREEN FEED PLAYER =================
 class FeedScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? customPosts;
   FeedScreen({this.customPosts});
@@ -200,10 +172,8 @@ class _FeedScreenState extends State<FeedScreen> {
             return {
               "id": e["_id"] ?? DateTime.now().millisecondsSinceEpoch.toString(),
               "type": e["type"] ?? "video",
-              "videoUrl": e["videoUrl"],
+              "videoUrl": e["videoUrl"] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
               "imageUrl": e["imageUrl"] ?? e["videoUrl"],
-              "audioUrl": e["audioUrl"] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-              "localFile": e["localFile"],
               "username": e["userId"] is Map ? "@${e["userId"]["username"]}" : "@yared_creator",
               "userAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
               "caption": e["caption"] ?? "",
@@ -269,40 +239,57 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   bool isLiked = false;
   bool isPlaying = true;
   bool isPhoto = false;
+  bool isInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    isPhoto = widget.post['type'] == 'photo' || widget.post['imageUrl'] != null;
+    isPhoto = widget.post['type'] == 'photo' || (widget.post['imageUrl'] != null && widget.post['videoUrl'] == null);
 
     _discAnim = AnimationController(vsync: this, duration: Duration(seconds: 4))..repeat();
 
-    final localPath = widget.post['localFile'];
-    if (localPath != null && File(localPath).existsSync()) {
-      _mediaController = VideoPlayerController.file(File(localPath))
-        ..initialize().then((_) {
-          if (mounted) {
-            setState(() {});
-            _mediaController!.setVolume(1.0);
-            _mediaController!.play();
-            _mediaController!.setLooping(true);
-          }
-        });
-    } else {
-      final mediaUrl = isPhoto
-          ? (widget.post['audioUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4")
-          : (widget.post['videoUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4");
+    _initPlayer();
+  }
 
-      _mediaController = VideoPlayerController.networkUrl(Uri.parse(mediaUrl))
-        ..initialize().then((_) {
-          if (mounted) {
-            setState(() {});
-            _mediaController!.setVolume(1.0);
-            _mediaController!.play();
-            _mediaController!.setLooping(true);
-          }
-        });
-    }
+  void _initPlayer() {
+    if (isPhoto) return;
+
+    final mediaPath = widget.post['videoUrl'] ?? widget.post['imageUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+
+    try {
+      if (mediaPath.toString().startsWith("http://") || mediaPath.toString().startsWith("https://")) {
+        // የኢንተርኔት ቪዲዮ ከሆነ
+        _mediaController = VideoPlayerController.networkUrl(Uri.parse(mediaPath));
+      } else {
+        // በስልክ ካሜራ/ጋለሪ የተነሳ ፋይል ከሆነ (Local File - ቀዩን ስህተት የሚያጠፋው)
+        final cleanPath = mediaPath.toString().replaceFirst("file://", "");
+        _mediaController = VideoPlayerController.file(File(cleanPath));
+      }
+
+      _mediaController!.initialize().then((_) {
+        if (mounted) {
+          setState(() {
+            isInitialized = true;
+          });
+          _mediaController!.setVolume(1.0);
+          _mediaController!.play();
+          _mediaController!.setLooping(true);
+        }
+      }).catchError((_) {
+        if (mounted) {
+          _mediaController = VideoPlayerController.networkUrl(
+            Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"),
+          )..initialize().then((_) {
+              if (mounted) {
+                setState(() { isInitialized = true; });
+                _mediaController!.setVolume(1.0);
+                _mediaController!.play();
+                _mediaController!.setLooping(true);
+              }
+            });
+        }
+      });
+    } catch (_) {}
   }
 
   @override
@@ -313,7 +300,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   }
 
   void _togglePlay() {
-    if (_mediaController == null) return;
+    if (_mediaController == null || !isInitialized) return;
     setState(() {
       if (_mediaController!.value.isPlaying) {
         _mediaController!.pause();
@@ -341,73 +328,13 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
     widget.onStateChanged();
   }
 
-  void _openShareModal() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => Container(
-        height: 380,
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Send Video to Friends 📲", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-            SizedBox(height: 12),
-            Text("Follow ለተደራረጋችኋቸው ጓደኞችህ ላክ፦", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            Divider(color: Colors.grey[800]),
-            Expanded(
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: AppState.friendsList.length,
-                itemBuilder: (context, idx) {
-                  final friend = AppState.friendsList[idx];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Column(
-                      children: [
-                        CircleAvatar(radius: 30, backgroundImage: NetworkImage(friend["avatar"]!)),
-                        SizedBox(height: 6),
-                        Text(friend["name"]!, style: TextStyle(color: Colors.white, fontSize: 12)),
-                        SizedBox(height: 8),
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(60, 28)),
-                          onPressed: () {
-                            final currentChat = AppState.directChats[friend["username"]] ?? [];
-                            currentChat.add({
-                              "sender": "@yared_official",
-                              "text": "Shared Video 🎬: ${widget.post['caption']}",
-                              "time": "Just now",
-                              "isVideo": true,
-                              "videoData": widget.post
-                            });
-                            AppState.directChats[friend["username"]!] = currentChat;
-
-                            Navigator.pop(context);
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ለ ${friend['name']} ተልኳል! 🎉 (Inbox ውስጥ እይ)")));
-                          },
-                          child: Text("Send", style: TextStyle(fontSize: 11)),
-                        )
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-            Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link Copied! 🔗")));
-                },
-                icon: Icon(Icons.link, color: Colors.white),
-                label: Text("Copy Link", style: TextStyle(color: Colors.white)),
-              ),
-            )
-          ],
-        ),
-      ),
-    );
+  Widget _buildPhotoWidget(String path) {
+    if (path.startsWith("http://") || path.startsWith("https://")) {
+      return Image.network(path, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.black));
+    } else {
+      final clean = path.replaceFirst("file://", "");
+      return Image.file(File(clean), fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.black));
+    }
   }
 
   void _openComments() {
@@ -512,9 +439,18 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
         fit: StackFit.expand,
         children: [
           if (isPhoto)
-            Image.network(photoUrl, fit: BoxFit.cover)
-          else if (_mediaController != null && _mediaController!.value.isInitialized)
-            Center(child: AspectRatio(aspectRatio: _mediaController!.value.aspectRatio, child: VideoPlayer(_mediaController!)))
+            _buildPhotoWidget(photoUrl)
+          else if (isInitialized && _mediaController != null)
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _mediaController!.value.size.width > 0 ? _mediaController!.value.size.width : 400,
+                  height: _mediaController!.value.size.height > 0 ? _mediaController!.value.size.height : 800,
+                  child: VideoPlayer(_mediaController!),
+                ),
+              ),
+            )
           else
             Center(child: CircularProgressIndicator(color: Colors.redAccent)),
 
@@ -587,8 +523,8 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                 Text("$commentCount", style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
                 SizedBox(height: 14),
                 IconButton(
-                  icon: Icon(Icons.send_rounded, color: Colors.white, size: 34),
-                  onPressed: _openShareModal,
+                  icon: Icon(Icons.share, color: Colors.white, size: 36),
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link Copied! 🔗"))),
                 ),
                 Text("Share", style: TextStyle(fontSize: 12, color: Colors.white)),
                 SizedBox(height: 18),
@@ -703,8 +639,6 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
                   "type": isVideo ? "video" : "photo",
                   "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
                   "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
-                  "audioUrl": selectedSound["audioUrl"],
-                  "localFile": pickedFile?.path,
                   "username": AppState.userProfile['username'] ?? "@yared_official",
                   "userAvatar": AppState.userProfile['avatar'] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
                   "caption": _captionCtrl.text.trim().isEmpty ? "My TikTak Post ✨" : _captionCtrl.text.trim(),
@@ -854,7 +788,7 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
   }
 }
 
-// ================= 3. DISCOVER / SEARCH SCREEN =================
+// ================= 3. DISCOVER SCREEN =================
 class DiscoverScreen extends StatefulWidget {
   @override
   _DiscoverScreenState createState() => _DiscoverScreenState();
@@ -949,7 +883,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        Image.network(previewUrl, fit: BoxFit.cover),
+                        Image.network(previewUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.grey[900])),
                         Positioned(
                           bottom: 8,
                           left: 8,
@@ -969,181 +903,27 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
-// ================= 4. INBOX & DIRECT CHAT SCREEN =================
-class InboxScreen extends StatefulWidget {
-  @override
-  _InboxScreenState createState() => _InboxScreenState();
-}
-
-class _InboxScreenState extends State<InboxScreen> {
+// ================= 4. INBOX SCREEN =================
+class InboxScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, title: Text("Direct Messages 💬"), centerTitle: true),
+      appBar: AppBar(backgroundColor: Colors.black, title: Text("Notifications 💬"), centerTitle: true),
       body: ListView(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Text("Friends You Follow (ጓደኞች)", style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+          ListTile(
+            leading: CircleAvatar(backgroundColor: Colors.redAccent, child: Icon(Icons.favorite, color: Colors.white)),
+            title: Text("@selam_official liked your post", style: TextStyle(color: Colors.white)),
+            subtitle: Text("1 minute ago", style: TextStyle(color: Colors.grey)),
           ),
-          ...AppState.friendsList.map((friend) {
-            final chats = AppState.directChats[friend["username"]] ?? [];
-            final lastMessage = chats.isNotEmpty ? chats.last["text"] : friend["lastMsg"];
-
-            return ListTile(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (c) => DirectChatDetailScreen(friend: friend)),
-                ).then((_) => setState(() {}));
-              },
-              leading: CircleAvatar(radius: 26, backgroundImage: NetworkImage(friend["avatar"]!)),
-              title: Text(friend["name"]!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              subtitle: Text(lastMessage ?? '', style: TextStyle(color: Colors.grey, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-              trailing: Icon(Icons.chat_bubble_outline, color: Colors.redAccent, size: 20),
-            );
-          }).toList(),
         ],
       ),
     );
   }
 }
 
-class DirectChatDetailScreen extends StatefulWidget {
-  final Map<String, String> friend;
-  DirectChatDetailScreen({required this.friend});
-
-  @override
-  _DirectChatDetailScreenState createState() => _DirectChatDetailScreenState();
-}
-
-class _DirectChatDetailScreenState extends State<DirectChatDetailScreen> {
-  final TextEditingController _msgCtrl = TextEditingController();
-
-  void _sendMessage() {
-    if (_msgCtrl.text.trim().isEmpty) return;
-
-    final currentChats = AppState.directChats[widget.friend["username"]] ?? [];
-    setState(() {
-      currentChats.add({
-        "sender": "@yared_official",
-        "text": _msgCtrl.text.trim(),
-        "time": "Just now",
-        "isVideo": false
-      });
-      AppState.directChats[widget.friend["username"]!] = currentChats;
-    });
-
-    _msgCtrl.clear();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final chats = AppState.directChats[widget.friend["username"]] ?? [];
-
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.grey[900],
-        title: Row(
-          children: [
-            CircleAvatar(radius: 18, backgroundImage: NetworkImage(widget.friend["avatar"]!)),
-            SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(widget.friend["name"]!, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                Text(widget.friend["username"]!, style: TextStyle(fontSize: 11, color: Colors.grey)),
-              ],
-            ),
-          ],
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              padding: EdgeInsets.all(12),
-              itemCount: chats.length,
-              itemBuilder: (context, idx) {
-                final msg = chats[idx];
-                final isMe = msg["sender"] == "@yared_official";
-                final isVideoShare = msg["isVideo"] == true;
-
-                return Align(
-                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    margin: EdgeInsets.symmetric(vertical: 4),
-                    padding: EdgeInsets.all(12),
-                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
-                    decoration: BoxDecoration(
-                      color: isMe ? Colors.redAccent : Colors.grey[850],
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (isVideoShare) ...[
-                          Row(
-                            children: [
-                              Icon(Icons.play_circle_fill, color: Colors.white, size: 20),
-                              SizedBox(width: 6),
-                              Text("Shared TikTak Video", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
-                            ],
-                          ),
-                          SizedBox(height: 6),
-                        ],
-                        Text(msg["text"] ?? '', style: TextStyle(color: Colors.white, fontSize: 14)),
-                        SizedBox(height: 4),
-                        Align(
-                          alignment: Alignment.bottomRight,
-                          child: Text(msg["time"] ?? '', style: TextStyle(color: Colors.white60, fontSize: 10)),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            color: Colors.grey[900],
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _msgCtrl,
-                    style: TextStyle(color: Colors.white),
-                    decoration: InputDecoration(
-                      hintText: "Send message to ${widget.friend['name']}...",
-                      hintStyle: TextStyle(color: Colors.grey),
-                      filled: true,
-                      fillColor: Colors.black,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    ),
-                  ),
-                ),
-                SizedBox(width: 8),
-                CircleAvatar(
-                  backgroundColor: Colors.redAccent,
-                  child: IconButton(
-                    icon: Icon(Icons.send, color: Colors.white, size: 18),
-                    onPressed: _sendMessage,
-                  ),
-                ),
-              ],
-            ),
-          )
-        ],
-      ),
-    );
-  }
-}
-
-// ================= 5. PROFILE SCREEN WITH WORKING PROFILE CHANGE =================
+// ================= 5. PROFILE SCREEN =================
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onProfileUpdated;
   ProfileScreen({required this.onProfileUpdated});
@@ -1153,124 +933,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  final List<String> avatarPresets = [
-    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
-    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-    "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
-    "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-  ];
-
-  void _openEditProfileModal() {
-    final nameCtrl = TextEditingController(text: AppState.userProfile["name"]);
-    final usernameCtrl = TextEditingController(text: AppState.userProfile["username"]);
-    final bioCtrl = TextEditingController(text: AppState.userProfile["bio"]);
-    String selectedAvatar = AppState.userProfile["avatar"]!;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-            child: Container(
-              height: 520,
-              padding: EdgeInsets.all(20),
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text("Edit Profile 👤", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                        IconButton(icon: Icon(Icons.close, color: Colors.grey), onPressed: () => Navigator.pop(context)),
-                      ],
-                    ),
-                    Divider(color: Colors.grey[800]),
-                    SizedBox(height: 10),
-                    Center(
-                      child: Column(
-                        children: [
-                          CircleAvatar(radius: 40, backgroundImage: NetworkImage(selectedAvatar)),
-                          SizedBox(height: 8),
-                          Text("Choose Profile Avatar", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                          SizedBox(height: 8),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: avatarPresets.map((av) {
-                              final isSel = selectedAvatar == av;
-                              return GestureDetector(
-                                onTap: () => setModalState(() => selectedAvatar = av),
-                                child: Container(
-                                  margin: EdgeInsets.symmetric(horizontal: 5),
-                                  padding: EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(color: isSel ? Colors.redAccent : Colors.transparent, width: 2),
-                                  ),
-                                  child: CircleAvatar(radius: 20, backgroundImage: NetworkImage(av)),
-                                ),
-                              );
-                            }).toList(),
-                          )
-                        ],
-                      ),
-                    ),
-                    SizedBox(height: 15),
-                    Text("Name", style: TextStyle(color: Colors.white70)),
-                    SizedBox(height: 4),
-                    TextField(
-                      controller: nameCtrl,
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(filled: true, fillColor: Colors.black, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-                    ),
-                    SizedBox(height: 10),
-                    Text("Username", style: TextStyle(color: Colors.white70)),
-                    SizedBox(height: 4),
-                    TextField(
-                      controller: usernameCtrl,
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(filled: true, fillColor: Colors.black, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-                    ),
-                    SizedBox(height: 10),
-                    Text("Bio", style: TextStyle(color: Colors.white70)),
-                    SizedBox(height: 4),
-                    TextField(
-                      controller: bioCtrl,
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(filled: true, fillColor: Colors.black, border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
-                    ),
-                    SizedBox(height: 20),
-                    Center(
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: EdgeInsets.symmetric(horizontal: 60, vertical: 14)),
-                        onPressed: () {
-                          setState(() {
-                            AppState.userProfile["name"] = nameCtrl.text.trim();
-                            AppState.userProfile["username"] = usernameCtrl.text.trim();
-                            AppState.userProfile["bio"] = bioCtrl.text.trim();
-                            AppState.userProfile["avatar"] = selectedAvatar;
-                          });
-                          widget.onProfileUpdated();
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Profile Updated! 🎉")));
-                        },
-                        child: Text("Save Changes", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final followingCount = AppState.followedUsers.length;
@@ -1296,13 +958,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 _divider(),
                 _stat("Likes", "120K"),
               ],
-            ),
-            SizedBox(height: 15),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[850], padding: EdgeInsets.symmetric(horizontal: 25, vertical: 10)),
-              onPressed: _openEditProfileModal,
-              icon: Icon(Icons.edit, color: Colors.white, size: 16),
-              label: Text("Edit Profile", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
             SizedBox(height: 15),
             Padding(

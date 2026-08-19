@@ -16,27 +16,27 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.19.0'
+          flutter-version: '3.22.0'
           channel: 'stable'
 
-      - name: Setup Flutter App and Build APK
+      - name: Build Android APK
         run: |
-          flutter create tiktak_app --platforms=android --org=com.yared.tiktak
+          flutter create --org com.yared.tiktak tiktak_app
           cd tiktak_app
           flutter pub add video_player http cupertino_icons
           cp ../main.dart lib/main.dart
-          flutter build apk --release
+          flutter build apk --debug
           mkdir -p ../build_output
-          cp build/app/outputs/flutter-apk/app-release.apk ../build_output/
+          cp build/app/outputs/flutter-apk/app-debug.apk ../build_output/tiktak-app.apk
 
-      - name: Upload APK Artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: tiktak-release-apk
-          path: build_output/app-release.apk
+          name: tiktak-android-apk
+          path: build_output/tiktak-app.apk

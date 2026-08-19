@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 
 void main() => runApp(TikTokApp());
@@ -67,40 +69,71 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 }
 
 // 1. TikTok Vertical Video Feed
-class FeedScreen extends StatelessWidget {
-  final List<Map<String, String>> sampleVideos = [
-    {
-      "url": "https://assets.mixkit.co/videos/preview/mixkit-girl-in-neon-sign-1232-large.mp4",
-      "user": "@solomon_dev",
-      "caption": "TikTak MVP Launch! 🚀 #flutter #coding #ethiopia",
-      "song": "Original Sound - Solomon",
-      "likes": "45.2K",
-      "comments": "1.1K"
-    },
-    {
-      "url": "https://assets.mixkit.co/videos/preview/mixkit-young-woman-skater-performing-a-trick-41142-large.mp4",
-      "user": "@habesha_vibes",
-      "caption": "መልካም ቀን ለሁላችሁም! ✨ #tiktak",
-      "song": "Habesha Vibes Track",
-      "likes": "18.4K",
-      "comments": "530"
+class FeedScreen extends StatefulWidget {
+  @override
+  _FeedScreenState createState() => _FeedScreenState();
+}
+
+class _FeedScreenState extends State<FeedScreen> {
+  List<dynamic> videos = [];
+  bool isLoading = true;
+
+  final String apiUrl = "https://tiktak-backend.onrender.com/api/videos/feed";
+
+  @override
+  void initState() {
+    super.initState();
+    fetchVideos();
+  }
+
+  Future<void> fetchVideos() async {
+    try {
+      final response = await http.get(Uri.parse(apiUrl));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          videos = data;
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
     }
-  ];
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return Center(child: CircularProgressIndicator(color: Colors.redAccent));
+    }
+
+    if (videos.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.video_library_outlined, size: 64, color: Colors.grey),
+            SizedBox(height: 12),
+            Text("እስካሁን የተጫነ ቪዲዮ የለም!", style: TextStyle(color: Colors.white, fontSize: 16)),
+            SizedBox(height: 8),
+            Text("የመጀመሪያውን ቪዲዮ ፖስት አድርግ 🚀", style: TextStyle(color: Colors.grey)),
+          ],
+        ),
+      );
+    }
+
     return PageView.builder(
       scrollDirection: Axis.vertical,
-      itemCount: sampleVideos.length,
+      itemCount: videos.length,
       itemBuilder: (context, index) {
-        return VideoCard(data: sampleVideos[index]);
+        return VideoCard(data: videos[index]);
       },
     );
   }
 }
 
 class VideoCard extends StatefulWidget {
-  final Map<String, String> data;
+  final Map<String, dynamic> data;
   VideoCard({required this.data});
 
   @override
@@ -113,7 +146,7 @@ class _VideoCardState extends State<VideoCard> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.data['url']!))
+    _controller = VideoPlayerController.networkUrl(Uri.parse(widget.data['videoUrl'] ?? ''))
       ..initialize().then((_) {
         setState(() {});
         _controller.play();
@@ -129,6 +162,12 @@ class _VideoCardState extends State<VideoCard> {
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.data['userId'];
+    final username = (user is Map && user['username'] != null) ? "@${user['username']}" : "@creator";
+    final caption = widget.data['caption'] ?? '';
+    final song = widget.data['songName'] ?? 'Original Sound';
+    final likesCount = (widget.data['likes'] as List?)?.length ?? 0;
+
     return Stack(
       children: [
         _controller.value.isInitialized
@@ -145,17 +184,17 @@ class _VideoCardState extends State<VideoCard> {
           bottom: 25,
           left: 15,
           child: Column(
-            crossContent: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.data['user']!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
+              Text(username, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
               SizedBox(height: 6),
-              Text(widget.data['caption']!, style: TextStyle(color: Colors.white)),
+              Text(caption, style: TextStyle(color: Colors.white)),
               SizedBox(height: 6),
               Row(
                 children: [
                   Icon(Icons.music_note, size: 15, color: Colors.white),
                   SizedBox(width: 5),
-                  Text(widget.data['song']!, style: TextStyle(fontSize: 12, color: Colors.white)),
+                  Text(song, style: TextStyle(fontSize: 12, color: Colors.white)),
                 ],
               ),
             ],
@@ -169,10 +208,10 @@ class _VideoCardState extends State<VideoCard> {
           child: Column(
             children: [
               Icon(Icons.favorite, color: Colors.redAccent, size: 36),
-              Text(widget.data['likes']!, style: TextStyle(fontSize: 12, color: Colors.white)),
+              Text("$likesCount", style: TextStyle(fontSize: 12, color: Colors.white)),
               SizedBox(height: 18),
               Icon(Icons.comment, color: Colors.white, size: 36),
-              Text(widget.data['comments']!, style: TextStyle(fontSize: 12, color: Colors.white)),
+              Text("0", style: TextStyle(fontSize: 12, color: Colors.white)),
               SizedBox(height: 18),
               Icon(Icons.share, color: Colors.white, size: 36),
               Text("Share", style: TextStyle(fontSize: 12, color: Colors.white)),

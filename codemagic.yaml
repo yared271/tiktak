@@ -7,12 +7,40 @@ workflows:
       flutter: stable
       java: 17
     scripts:
-      - name: Generate Android project structure
+      - name: Setup project structure and build APK
         script: |
-          flutter create --platforms=android .
+          # 1. lib ፎልደር ማዘጋጀት
+          mkdir -p lib
+          if [ -f "main.dart" ]; then
+            cp main.dart lib/main.dart
+          fi
+
+          # 2. የ Android ፋይሎችን መፍጠር
+          flutter create --platforms=android --org=com.yared.tiktak .
+
+          # 3. የእኛን main.dart ወደ lib መመለስ
+          if [ -f "main.dart" ]; then
+            cp main.dart lib/main.dart
+          fi
+
+          # 4. ለ video_player የሚያስፈልገውን minSdkVersion 21 ማስተካከል
+          python3 -c '
+          import glob
+          for g in glob.glob("android/app/build.gradle*"):
+              with open(g, "r") as f:
+                  c = f.read()
+              c = c.replace("minSdkVersion flutter.minSdkVersion", "minSdkVersion 21")
+              c = c.replace("minSdk = flutter.minSdkVersion", "minSdk = 21")
+              c = c.replace("minSdk = flutter.minSdk", "minSdk = 21")
+              with open(g, "w") as f:
+                  f.write(c)
+          '
+
+          # 5. ጥቅሎችን ማውረድ
           flutter pub get
-      - name: Build Android APK
-        script: |
+
+          # 6. APK መገንባት
           flutter build apk --debug
+
     artifacts:
       - build/**/outputs/**/*.apk

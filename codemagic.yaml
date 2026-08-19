@@ -7,23 +7,20 @@ workflows:
       flutter: stable
       java: 17
     scripts:
-      - name: Setup project structure and build APK
+      - name: Setup project and build Master APK
         script: |
-          # 1. lib ፎልደር ማዘጋጀት
           mkdir -p lib
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
 
-          # 2. የ Android ፋይሎችን መፍጠር
           flutter create --platforms=android --org=com.yared.tiktak .
 
-          # 3. የእኛን main.dart ወደ lib መመለስ
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
 
-          # 4. ለ video_player የሚያስፈልገውን minSdkVersion 21 ማስተካከል
+          # 1. minSdkVersion 21 እና የካሜራ/ድምጽ ፍቃዶችን በንጽህና ማስተካከል
           python3 -c '
           import glob
           for g in glob.glob("android/app/build.gradle*"):
@@ -34,12 +31,23 @@ workflows:
               c = c.replace("minSdk = flutter.minSdk", "minSdk = 21")
               with open(g, "w") as f:
                   f.write(c)
+
+          manifest = "android/app/src/main/AndroidManifest.xml"
+          with open(manifest, "r") as f:
+              m = f.read()
+          perms = """
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+"""
+          if "android.permission.CAMERA" not in m:
+              m = m.replace("<application", perms + "\n    <application")
+          with open(manifest, "w") as f:
+              f.write(m)
           '
 
-          # 5. ጥቅሎችን ማውረድ
-          flutter pub get
-
-          # 6. APK መገንባት
+          flutter pub add image_picker video_player http cupertino_icons
           flutter build apk --debug
 
     artifacts:

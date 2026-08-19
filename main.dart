@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
 
 void main() => runApp(TikTokApp());
@@ -21,6 +23,13 @@ class TikTokApp extends StatelessWidget {
 
 // Global App State
 class AppState {
+  static Map<String, String> userProfile = {
+    "username": "@yared_official",
+    "name": "Yared Nigusse",
+    "bio": "🇪🇹 Content Creator | TikTak Star ✨ #Ethiopia",
+    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200"
+  };
+
   static Set<String> followedUsers = {"@selam_official"};
   
   static Map<String, List<Map<String, String>>> commentsDb = {
@@ -32,6 +41,30 @@ class AppState {
       {"user": "Amanuel", "text": "የኢትዮጵያ ውበት ድንቅ ነው 🇪🇹❤️", "time": "2m ago"}
     ]
   };
+
+  // እውነተኛ ድምጽ ያላቸው የሙዚቃ ፋይሎች (Streamable Audio)
+  static final List<Map<String, String>> globalMusic = [
+    {
+      "name": "🇪🇹 Habesha Traditional Beat",
+      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    },
+    {
+      "name": "🎵 Teddy Afro - Mar Eske Tuwaf",
+      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"
+    },
+    {
+      "name": "🔥 Rophnan - Gurage Electronic Mix",
+      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4"
+    },
+    {
+      "name": "🌍 The Weeknd - Blinding Lights",
+      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4"
+    },
+    {
+      "name": "🥁 Tyla - Water (TikTok Dance)",
+      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+    }
+  ];
 
   static List<Map<String, dynamic>> defaultPosts = [
     {
@@ -49,45 +82,13 @@ class AppState {
       "id": "2",
       "type": "photo",
       "imageUrl": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800",
+      "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
       "username": "@selam_official",
       "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
       "caption": "መልካም ቀን ከውቧ አዲስ አበባ 🌸✨ #EthiopiaGirl #HabeshaStyle #AddisAbaba",
       "songName": "🎵 Teddy Afro - Mar Eske Tuwaf",
       "likes": 8920,
       "tags": ["ethiopia girl", "ethiopia", "habesha", "photo", "addis ababa", "fashion"]
-    },
-    {
-      "id": "3",
-      "type": "video",
-      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-      "username": "@ethio_comedy",
-      "userAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200",
-      "caption": "የዘመኑ ቲክቶከሮች ሲቀወጥ 😂🤣 #comedy #funny #ethiopia",
-      "songName": "🎧 Funny Laugh Viral Sound Effect",
-      "likes": 12400,
-      "tags": ["comedy", "funny", "ethiopia", "viral", "joke"]
-    },
-    {
-      "id": "4",
-      "type": "photo",
-      "imageUrl": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=800",
-      "username": "@habesha_fashion",
-      "userAvatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=200",
-      "caption": "Habesha kemis modern vibes 👗🇪🇹 #EthiopiaGirl #habeshakemis #style",
-      "songName": "✨ Aster Aweke - Classic Vibes",
-      "likes": 6310,
-      "tags": ["ethiopia girl", "fashion", "habeshakemis", "ethiopia", "model"]
-    },
-    {
-      "id": "5",
-      "type": "video",
-      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4",
-      "username": "@addis_music",
-      "userAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200",
-      "caption": "New Ethiopian Music Challenge 🔥🎶 #music #tiktokchallenge #dance",
-      "songName": "🔥 Rophnan - Electronic Gurage Mix",
-      "likes": 15800,
-      "tags": ["music", "dance", "ethiopia", "rophnan", "challenge"]
     }
   ];
 
@@ -107,9 +108,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     final screens = [
       FeedScreen(),
       DiscoverScreen(),
-      UploadScreen(onPostSuccess: () => setState(() => _currentIndex = 0)),
+      RealCameraStudio(onPostComplete: () => setState(() => _currentIndex = 0)),
       InboxScreen(),
-      ProfileScreen(),
+      ProfileScreen(onProfileUpdated: () => setState(() {})),
     ];
 
     return Scaffold(
@@ -143,7 +144,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-// ================= 1. HOME FEED SCREEN =================
+// ================= 1. HOME FEED SCREEN WITH LIVE AUDIO =================
 class FeedScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? customPosts;
   FeedScreen({this.customPosts});
@@ -171,9 +172,11 @@ class _FeedScreenState extends State<FeedScreen> {
           final serverPosts = data.map<Map<String, dynamic>>((e) {
             return {
               "id": e["_id"] ?? DateTime.now().millisecondsSinceEpoch.toString(),
-              "type": e["type"] ?? (e["videoUrl"] != null && e["videoUrl"].toString().contains("unsplash") ? "photo" : "video"),
+              "type": e["type"] ?? "video",
               "videoUrl": e["videoUrl"],
               "imageUrl": e["imageUrl"] ?? e["videoUrl"],
+              "audioUrl": e["audioUrl"] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+              "localFile": e["localFile"],
               "username": e["userId"] is Map ? "@${e["userId"]["username"]}" : "@yared_creator",
               "userAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
               "caption": e["caption"] ?? "",
@@ -234,7 +237,7 @@ class TikTokCard extends StatefulWidget {
 }
 
 class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateMixin {
-  VideoPlayerController? _videoController;
+  VideoPlayerController? _mediaController;
   late AnimationController _discAnim;
   bool isLiked = false;
   bool isPlaying = true;
@@ -247,14 +250,29 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
 
     _discAnim = AnimationController(vsync: this, duration: Duration(seconds: 4))..repeat();
 
-    if (!isPhoto) {
-      final url = widget.post['videoUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(url))
+    final localPath = widget.post['localFile'];
+    if (localPath != null && File(localPath).existsSync()) {
+      _mediaController = VideoPlayerController.file(File(localPath))
         ..initialize().then((_) {
           if (mounted) {
             setState(() {});
-            _videoController!.play();
-            _videoController!.setLooping(true);
+            _mediaController!.setVolume(1.0);
+            _mediaController!.play();
+            _mediaController!.setLooping(true);
+          }
+        });
+    } else {
+      final mediaUrl = isPhoto
+          ? (widget.post['audioUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4")
+          : (widget.post['videoUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4");
+
+      _mediaController = VideoPlayerController.networkUrl(Uri.parse(mediaUrl))
+        ..initialize().then((_) {
+          if (mounted) {
+            setState(() {});
+            _mediaController!.setVolume(1.0); // ሙሉ ድምጽ ማጫወት
+            _mediaController!.play();
+            _mediaController!.setLooping(true);
           }
         });
     }
@@ -262,20 +280,20 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _videoController?.dispose();
+    _mediaController?.dispose();
     _discAnim.dispose();
     super.dispose();
   }
 
   void _togglePlay() {
-    if (isPhoto || _videoController == null) return;
+    if (_mediaController == null) return;
     setState(() {
-      if (_videoController!.value.isPlaying) {
-        _videoController!.pause();
+      if (_mediaController!.value.isPlaying) {
+        _mediaController!.pause();
         _discAnim.stop();
         isPlaying = false;
       } else {
-        _videoController!.play();
+        _mediaController!.play();
         _discAnim.repeat();
         isPlaying = true;
       }
@@ -348,7 +366,11 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                           child: TextField(
                             controller: textController,
                             style: TextStyle(color: Colors.white),
-                            decoration: InputDecoration(hintText: "Add a comment as @yared...", hintStyle: TextStyle(color: Colors.grey), border: InputBorder.none),
+                            decoration: InputDecoration(
+                              hintText: "Add a comment as ${AppState.userProfile['username']}...",
+                              hintStyle: TextStyle(color: Colors.grey),
+                              border: InputBorder.none,
+                            ),
                           ),
                         ),
                         IconButton(
@@ -357,7 +379,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                             if (textController.text.trim().isEmpty) return;
                             setModalState(() {
                               comments.insert(0, {
-                                "user": "@yared_official",
+                                "user": AppState.userProfile['username'] ?? "@yared",
                                 "text": textController.text.trim(),
                                 "time": "Just now"
                               });
@@ -395,15 +417,15 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
         children: [
           if (isPhoto)
             Image.network(photoUrl, fit: BoxFit.cover)
-          else if (_videoController != null && _videoController!.value.isInitialized)
-            Center(child: AspectRatio(aspectRatio: _videoController!.value.aspectRatio, child: VideoPlayer(_videoController!)))
+          else if (_mediaController != null && _mediaController!.value.isInitialized)
+            Center(child: AspectRatio(aspectRatio: _mediaController!.value.aspectRatio, child: VideoPlayer(_mediaController!)))
           else
             Center(child: CircularProgressIndicator(color: Colors.redAccent)),
 
-          if (!isPlaying && !isPhoto)
+          if (!isPlaying)
             Center(child: Icon(Icons.play_circle_outline, size: 80, color: Colors.white70)),
 
-          // Bottom Left: User Info & Caption
+          // User Info & Caption
           Positioned(
             bottom: 25,
             left: 15,
@@ -428,7 +450,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
             ),
           ),
 
-          // Right Side: Follow Avatar, Like, Comment, Share, Sound Disc
+          // Action Icons
           Positioned(
             bottom: 25,
             right: 12,
@@ -498,7 +520,273 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   }
 }
 
-// ================= 2. REAL SEARCH & DISCOVER SCREEN =================
+// ================= 2. REAL PHONE CAMERA & GALLERY STUDIO =================
+class RealCameraStudio extends StatefulWidget {
+  final VoidCallback onPostComplete;
+  RealCameraStudio({required this.onPostComplete});
+
+  @override
+  _RealCameraStudioState createState() => _RealCameraStudioState();
+}
+
+class _RealCameraStudioState extends State<RealCameraStudio> {
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _captionCtrl = TextEditingController();
+  
+  Map<String, String> selectedSound = AppState.globalMusic[0];
+  XFile? pickedFile;
+  bool isVideo = true;
+  bool isPosting = false;
+
+  // 1. በስልክ ካሜራ ቪዲዮ መቅረጽ (Record Real Video from Phone Camera)
+  Future<void> _recordVideoWithCamera() async {
+    final XFile? video = await _picker.pickVideo(
+      source: ImageSource.camera,
+      maxDuration: Duration(seconds: 60),
+    );
+    if (video != null) {
+      setState(() {
+        pickedFile = video;
+        isVideo = true;
+      });
+      _openPublishModal();
+    }
+  }
+
+  // 2. በስልክ ካሜራ ፎቶ ማንሳት (Take Real Photo with Camera)
+  Future<void> _takePhotoWithCamera() async {
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    if (photo != null) {
+      setState(() {
+        pickedFile = photo;
+        isVideo = false;
+      });
+      _openPublishModal();
+    }
+  }
+
+  // 3. ከስልክ ጋለሪ መምረጥ (Pick from Phone Gallery)
+  Future<void> _pickFromGallery() async {
+    final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
+    if (file != null) {
+      setState(() {
+        pickedFile = file;
+        isVideo = true;
+      });
+      _openPublishModal();
+    } else {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() {
+          pickedFile = image;
+          isVideo = false;
+        });
+        _openPublishModal();
+      }
+    }
+  }
+
+  void _openPublishModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Publish to TikTak 🚀", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            SizedBox(height: 12),
+            TextField(
+              controller: _captionCtrl,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: "Write caption... #ethiopia #viral #habesha",
+                hintStyle: TextStyle(color: Colors.grey),
+                filled: true,
+                fillColor: Colors.black,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+              ),
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.music_note, color: Colors.redAccent, size: 18),
+                SizedBox(width: 6),
+                Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis)),
+              ],
+            ),
+            SizedBox(height: 20),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(double.infinity, 48)),
+              onPressed: () async {
+                final newPost = {
+                  "id": DateTime.now().millisecondsSinceEpoch.toString(),
+                  "type": isVideo ? "video" : "photo",
+                  "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+                  "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
+                  "audioUrl": selectedSound["audioUrl"],
+                  "localFile": pickedFile?.path,
+                  "username": AppState.userProfile['username'] ?? "@yared_official",
+                  "userAvatar": AppState.userProfile['avatar'] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+                  "caption": _captionCtrl.text.trim().isEmpty ? "My TikTak Post ✨" : _captionCtrl.text.trim(),
+                  "songName": selectedSound["name"],
+                  "likes": 1,
+                  "tags": ["ethiopia", "viral", "habesha"]
+                };
+
+                AppState.allPosts.insert(0, newPost);
+                
+                try {
+                  await http.post(
+                    Uri.parse("https://tiktak-backend.onrender.com/api/videos/upload"),
+                    headers: {"Content-Type": "application/json"},
+                    body: json.encode(newPost),
+                  );
+                } catch (_) {}
+
+                Navigator.pop(context);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ተጭኗል! ወደ Home ገጽ ተመልሰህ እይ 🎉")));
+                widget.onPostComplete();
+              },
+              child: Text("Post Now 🚀", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+            ),
+            SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text("TikTak Studio 🎬"),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          children: [
+            // 1. ሙዚቃ መምረጫ
+            GestureDetector(
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.grey[900],
+                  builder: (c) => Container(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text("Select Sound 🎵", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        Divider(),
+                        ...AppState.globalMusic.map((m) => ListTile(
+                          leading: Icon(Icons.music_note, color: Colors.redAccent),
+                          title: Text(m["name"]!, style: TextStyle(color: Colors.white)),
+                          trailing: selectedSound["name"] == m["name"] ? Icon(Icons.check, color: Colors.redAccent) : null,
+                          onTap: () {
+                            setState(() => selectedSound = m);
+                            Navigator.pop(context);
+                          },
+                        )).toList(),
+                      ],
+                    ),
+                  ),
+                );
+              },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
+                child: Row(
+                  children: [
+                    Icon(Icons.music_note, color: Colors.redAccent),
+                    SizedBox(width: 10),
+                    Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 14),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 30),
+
+            // 2. በስልክ ካሜራ ቪዲዮ መቅረጫ (Big Button)
+            InkWell(
+              onTap: _recordVideoWithCamera,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.redAccent, Colors.deepOrange]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.videocam_rounded, size: 60, color: Colors.white),
+                    SizedBox(height: 10),
+                    Text("📹 በካሜራ ቪዲዮ ቅረጽ (Record Video)", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                    Text("የስልክህን ካሜራ ከፍቶ ቪዲዮ ይቀርጻል", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 20),
+
+            // 3. በካሜራ ፎቶ ማንሻ እና ጋለሪ
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _takePhotoWithCamera,
+                    borderRadius: BorderRadius.circular(15),
+                    child: Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
+                      child: Column(
+                        children: [
+                          Icon(Icons.camera_alt, size: 36, color: Colors.amber),
+                          SizedBox(height: 8),
+                          Text("📸 ፎቶ አንሳ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 15),
+                Expanded(
+                  child: InkWell(
+                    onTap: _pickFromGallery,
+                    borderRadius: BorderRadius.circular(15),
+                    child: Container(
+                      padding: EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
+                      child: Column(
+                        children: [
+                          Icon(Icons.photo_library, size: 36, color: Colors.blueAccent),
+                          SizedBox(height: 8),
+                          Text("🖼️ ከጋለሪ ምረጥ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================= 3. DISCOVER SCREEN =================
 class DiscoverScreen extends StatefulWidget {
   @override
   _DiscoverScreenState createState() => _DiscoverScreenState();
@@ -541,9 +829,6 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             hintText: "Search 'Ethiopia girl', 'dance', 'comedy'...",
             hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
             prefixIcon: Icon(Icons.search, color: Colors.redAccent),
-            suffixIcon: _searchCtrl.text.isNotEmpty
-              ? IconButton(icon: Icon(Icons.clear, color: Colors.grey), onPressed: () { _searchCtrl.clear(); _filterSearch(""); })
-              : null,
             filled: true,
             fillColor: Colors.grey[900],
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
@@ -580,213 +865,37 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
           Expanded(
-            child: searchResults.isEmpty
-              ? Center(child: Text("ምንም ውጤት አልተገኘም! ሌላ ቃል ይፈልጉ 🔍", style: TextStyle(color: Colors.grey)))
-              : GridView.builder(
-                  padding: EdgeInsets.all(8),
-                  itemCount: searchResults.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.72),
-                  itemBuilder: (context, index) {
-                    final item = searchResults[index];
-                    final isPhoto = item['type'] == 'photo';
-                    final previewUrl = isPhoto ? item['imageUrl'] : 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500';
+            child: GridView.builder(
+              padding: EdgeInsets.all(8),
+              itemCount: searchResults.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.72),
+              itemBuilder: (context, index) {
+                final item = searchResults[index];
+                final isPhoto = item['type'] == 'photo';
+                final previewUrl = isPhoto ? item['imageUrl'] : 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500';
 
-                    return GestureDetector(
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (c) => Scaffold(body: FeedScreen(customPosts: [item]))));
-                      },
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            Image.network(previewUrl, fit: BoxFit.cover),
-                            Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.transparent, Colors.black87]),
-                              ),
-                            ),
-                            Positioned(
-                              top: 8,
-                              right: 8,
-                              child: Container(
-                                padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(4)),
-                                child: Text(isPhoto ? "📸 Photo" : "📹 Video", style: TextStyle(color: Colors.white, fontSize: 10)),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 8,
-                              left: 8,
-                              right: 8,
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(item['caption'] ?? '', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis),
-                                  SizedBox(height: 4),
-                                  Text(item['username'] ?? '', style: TextStyle(color: Colors.grey, fontSize: 11)),
-                                ],
-                              ),
-                            )
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                return GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => Scaffold(body: FeedScreen(customPosts: [item])))),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.network(previewUrl, fit: BoxFit.cover),
+                        Positioned(
+                          bottom: 8,
+                          left: 8,
+                          right: 8,
+                          child: Text(item['caption'] ?? '', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), maxLines: 2),
+                        )
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           )
         ],
-      ),
-    );
-  }
-}
-
-// ================= 3. UPLOAD / POST SCREEN (ፎቶ/ቪዲዮ + ሙዚቃ መራጭ) =================
-class UploadScreen extends StatefulWidget {
-  final VoidCallback onPostSuccess;
-  UploadScreen({required this.onPostSuccess});
-
-  @override
-  _UploadScreenState createState() => _UploadScreenState();
-}
-
-class _UploadScreenState extends State<UploadScreen> {
-  final TextEditingController _captionController = TextEditingController();
-  String selectedType = "video";
-  String selectedMediaUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-  String selectedMusic = "🇪🇹 Habesha Traditional Beat";
-  bool isPosting = false;
-
-  final List<Map<String, String>> presets = [
-    {"name": "📹 Video 1 (Dance)", "type": "video", "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"},
-    {"name": "📸 Photo (Habesha Girl)", "type": "photo", "url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800"},
-    {"name": "📹 Video 2 (Addis Vibe)", "type": "video", "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4"},
-    {"name": "📸 Photo (Modern Dress)", "type": "photo", "url": "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800"},
-  ];
-
-  final List<String> musicLibrary = [
-    "🇪🇹 Habesha Traditional Beat",
-    "🎵 Teddy Afro - Mar Eske Tuwaf",
-    "🔥 Rophnan - Gurage Electronic Mix",
-    "🎧 Tilahun Gessesse Classics",
-    "✨ Aster Aweke - Vibe Mix",
-  ];
-
-  Future<void> _publishPost() async {
-    if (_captionController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("እባክዎ መግለጫ (Caption) ይጻፉ!")));
-      return;
-    }
-
-    setState(() => isPosting = true);
-
-    final newPost = {
-      "id": DateTime.now().millisecondsSinceEpoch.toString(),
-      "type": selectedType,
-      "videoUrl": selectedType == "video" ? selectedMediaUrl : null,
-      "imageUrl": selectedType == "photo" ? selectedMediaUrl : null,
-      "username": "@yared_official",
-      "userAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
-      "caption": _captionController.text.trim(),
-      "songName": selectedMusic,
-      "likes": 1,
-      "tags": _captionController.text.toLowerCase().split(' ')
-    };
-
-    AppState.allPosts.insert(0, newPost);
-
-    try {
-      await http.post(
-        Uri.parse("https://tiktak-backend.onrender.com/api/videos/upload"),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode(newPost),
-      );
-    } catch (_) {}
-
-    setState(() => isPosting = false);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("በተሳካ ሁኔታ ፖስት ተደርጓል! 🎉")));
-    _captionController.clear();
-    widget.onPostSuccess();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, title: Text("Create Post 🎨"), centerTitle: true),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("1. መግለጫ (Caption) ጻፍ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            TextField(
-              controller: _captionController,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "ስለ ፖስቱ ጻፍ... #EthiopiaGirl #habesha #viral",
-                hintStyle: TextStyle(color: Colors.grey),
-                filled: true,
-                fillColor: Colors.grey[900],
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-              ),
-            ),
-            SizedBox(height: 18),
-
-            Text("2. የበስተጀርባ ሙዚቃ ምረጥ 🎵", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            SizedBox(height: 8),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(12)),
-              child: DropdownButton<String>(
-                value: selectedMusic,
-                isExpanded: true,
-                dropdownColor: Colors.grey[900],
-                underline: SizedBox(),
-                items: musicLibrary.map((m) => DropdownMenuItem(value: m, child: Text(m, style: TextStyle(color: Colors.white)))).toList(),
-                onChanged: (val) => setState(() => selectedMusic = val!),
-              ),
-            ),
-            SizedBox(height: 18),
-
-            Text("3. የሚጫን ሚዲያ ምረጥ (Video ወይም Photo)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: presets.map((p) {
-                final isSel = selectedMediaUrl == p["url"];
-                return ChoiceChip(
-                  label: Text(p["name"]!),
-                  selected: isSel,
-                  selectedColor: Colors.redAccent,
-                  backgroundColor: Colors.grey[900],
-                  labelStyle: TextStyle(color: isSel ? Colors.white : Colors.grey),
-                  onSelected: (sel) {
-                    if (sel) {
-                      setState(() {
-                        selectedMediaUrl = p["url"]!;
-                        selectedType = p["type"]!;
-                      });
-                    }
-                  },
-                );
-              }).toList(),
-            ),
-            SizedBox(height: 30),
-
-            Center(
-              child: isPosting
-                ? CircularProgressIndicator(color: Colors.redAccent)
-                : ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, padding: EdgeInsets.symmetric(horizontal: 60, vertical: 15)),
-                    onPressed: _publishPost,
-                    child: Text("Post Now 🚀", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                  ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -806,11 +915,6 @@ class InboxScreen extends StatelessWidget {
             title: Text("@selam_official liked your post", style: TextStyle(color: Colors.white)),
             subtitle: Text("1 minute ago", style: TextStyle(color: Colors.grey)),
           ),
-          ListTile(
-            leading: CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.person_add, color: Colors.white)),
-            title: Text("@ethiopian_beauty started following you", style: TextStyle(color: Colors.white)),
-            subtitle: Text("10 minutes ago", style: TextStyle(color: Colors.grey)),
-          ),
         ],
       ),
     );
@@ -818,21 +922,30 @@ class InboxScreen extends StatelessWidget {
 }
 
 // ================= 5. PROFILE SCREEN =================
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
+  final VoidCallback onProfileUpdated;
+  ProfileScreen({required this.onProfileUpdated});
+
+  @override
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final followingCount = AppState.followedUsers.length;
+    final user = AppState.userProfile;
 
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, title: Text("@yared_official"), centerTitle: true),
+      appBar: AppBar(backgroundColor: Colors.black, title: Text(user["name"]!), centerTitle: true),
       body: SingleChildScrollView(
         child: Column(
           children: [
             SizedBox(height: 15),
-            CircleAvatar(radius: 45, backgroundColor: Colors.redAccent, child: Icon(Icons.person, size: 50, color: Colors.white)),
+            CircleAvatar(radius: 45, backgroundImage: NetworkImage(user["avatar"]!)),
             SizedBox(height: 10),
-            Text("@yared_official", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(user["username"]!, style: TextStyle(color: Colors.grey, fontSize: 14)),
             SizedBox(height: 15),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -845,10 +958,9 @@ class ProfileScreen extends StatelessWidget {
               ],
             ),
             SizedBox(height: 15),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[850]),
-              onPressed: () {},
-              child: Text("Edit Profile", style: TextStyle(color: Colors.white)),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 30),
+              child: Text(user["bio"]!, textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 13)),
             ),
             SizedBox(height: 20),
             GridView.builder(

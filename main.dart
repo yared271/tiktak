@@ -2,13 +2,36 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
-void main() => runApp(TikTokApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+  final String savedUsername = prefs.getString('username') ?? "";
+  final String savedName = prefs.getString('name') ?? "";
+  final String savedAvatar = prefs.getString('avatar') ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200";
 
-class TikTokApp extends StatelessWidget {
+  if (isLoggedIn && savedUsername.isNotEmpty) {
+    AppState.isLoggedIn = true;
+    AppState.userProfile['username'] = savedUsername;
+    AppState.userProfile['name'] = savedName;
+    AppState.userProfile['avatar'] = savedAvatar;
+  }
+
+  runApp(TikTokApp());
+}
+
+class TikTokApp extends StatefulWidget {
+  @override
+  _TikTokAppState createState() => _TikTokAppState();
+}
+
+class _TikTokAppState extends State<TikTokApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -16,27 +39,38 @@ class TikTokApp extends StatelessWidget {
       theme: ThemeData.dark().copyWith(
         scaffoldBackgroundColor: Colors.black,
       ),
-      home: MainNavigationScreen(),
+      home: AppState.isLoggedIn ? MainNavigationScreen() : AuthPhoneScreen(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// Global App State
+// ================= GLOBAL APP STATE =================
 class AppState {
+  static bool isLoggedIn = false;
+
   static Map<String, String> userProfile = {
-    "username": "@yared_official",
-    "name": "Yared Nigusse",
-    "bio": "🇪🇹 Content Creator | TikTak Star ✨ #Ethiopia",
-    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200"
+    "username": "@user",
+    "name": "User",
+    "phone": "",
+    "bio": "Welcome to my TikTak profile! ✨ #Ethiopia",
+    "avatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+    "following": "0",
+    "followers": "0",
+    "likes": "0"
   };
+
+  static Set<String> followedUsers = {};
+  static Set<String> savedPostIds = {};
+  static Set<String> repostedPostIds = {};
+  static Set<String> likedPostIds = {};
 
   static List<Map<String, String>> friendsList = [
     {
       "username": "@selam_official",
       "name": "Selam Tesfaye",
       "avatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-      "lastMsg": "ሰላም ያሬድ! አዲሱ ቪዲዮህ በጣም ያምራል 🔥"
+      "lastMsg": "ሰላም! አዲሱ TikTak መተግበሪያ በጣም ያምራል 🔥"
     },
     {
       "username": "@ethiopian_beauty",
@@ -46,19 +80,15 @@ class AppState {
     }
   ];
 
-  static Set<String> followedUsers = {"@selam_official", "@ethiopian_beauty"};
-  
   static Map<String, List<Map<String, dynamic>>> directChats = {
     "@selam_official": [
-      {"sender": "@selam_official", "text": "ሰላም ያሬድ! እንዴት ነህ?", "time": "10:30 AM", "isVideo": false},
-      {"sender": "@yared_official", "text": "ደህና ነኝ ሰላም! አዲሱን TikTak መተግበሪያ እየሞከርኩት ነው 🚀", "time": "10:32 AM", "isVideo": false}
+      {"sender": "@selam_official", "text": "ሰላም እንዴት ነህ?", "time": "10:30 AM", "isVideo": false}
     ]
   };
 
   static Map<String, List<Map<String, String>>> commentsDb = {
     "1": [
-      {"user": "Dawit", "text": "ዋው ምርጥ የሀበሻ ጭፈራ ነው! 🔥", "time": "5m ago"},
-      {"user": "Helen", "text": "አልባሳቱ በጣም ያምራል ✨", "time": "12m ago"}
+      {"user": "Dawit", "text": "ዋው ምርጥ የሀበሻ ጭፈራ ነው! 🔥", "time": "5m ago"}
     ]
   };
 
@@ -72,53 +102,313 @@ class AppState {
   static List<Map<String, dynamic>> allPosts = [];
 }
 
-class MainNavigationScreen extends StatefulWidget {
+// ================= 1. PHONE & PASSWORD AUTH SCREEN =================
+class AuthPhoneScreen extends StatefulWidget {
   @override
-  _MainNavigationScreenState createState() => _MainNavigationScreenState();
+  _AuthPhoneScreenState createState() => _AuthPhoneScreenState();
 }
 
-class _MainNavigationScreenState extends State<MainNavigationScreen> {
-  int _currentIndex = 0;
+class _AuthPhoneScreenState extends State<AuthPhoneScreen> {
+  bool isLogin = true;
+  final _phoneCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  bool isLoading = false;
+
+  void _proceedAuth() async {
+    final phone = _phoneCtrl.text.trim();
+    final password = _passwordCtrl.text.trim();
+
+    if (phone.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("እባክዎ ስልክ ቁጥር እና የይለፍ ቃል ያስገቡ!")));
+      return;
+    }
+
+    AppState.userProfile['phone'] = phone;
+
+    if (isLogin) {
+      // Login flow: langsung masuk
+      setState(() => isLoading = true);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('phone', phone);
+      await prefs.setString('username', AppState.userProfile['username'] ?? "@user");
+      await prefs.setString('name', AppState.userProfile['name'] ?? "User");
+      await prefs.setString('avatar', AppState.userProfile['avatar']!);
+
+      AppState.isLoggedIn = true;
+      setState(() => isLoading = false);
+
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (c) => MainNavigationScreen()));
+    } else {
+      // Register flow: pergi ke step 2 (Username + Profile Pic or Skip)
+      Navigator.push(context, MaterialPageRoute(builder: (c) => SetupProfileScreen(phoneNumber: phone, password: password)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final screens = [
-      FeedScreen(),
-      DiscoverScreen(),
-      RealCameraStudio(onPostComplete: () => setState(() => _currentIndex = 0)),
-      InboxScreen(),
-      ProfileScreen(onProfileUpdated: () => setState(() {})),
-    ];
-
     return Scaffold(
-      body: screens[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.black,
-        selectedItemColor: Colors.white,
-        unselectedItemColor: Colors.grey,
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Discover'),
-          BottomNavigationBarItem(
-            icon: Container(
-              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(8)),
-              child: Icon(Icons.add, color: Colors.white, size: 20),
-            ),
-            label: '',
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(height: 30),
+              Center(
+                child: Column(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                      child: Icon(Icons.music_note, size: 50, color: Colors.white),
+                    ),
+                    SizedBox(height: 12),
+                    Text("TikTak", style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5)),
+                    Text("Watch • Create • Share", style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  ],
+                ),
+              ),
+              SizedBox(height: 40),
+              Text(isLogin ? "Welcome Back! 👋" : "Sign Up with Phone 📱", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
+              SizedBox(height: 8),
+              Text(isLogin ? "Login with your phone number and password" : "Enter your phone number to get started", style: TextStyle(color: Colors.grey, fontSize: 13)),
+              SizedBox(height: 25),
+
+              TextField(
+                controller: _phoneCtrl,
+                keyboardType: TextInputType.phone,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: "Phone Number (ስልክ ቁጥር)",
+                  hintText: "+251 9... ወይም 09...",
+                  hintStyle: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  labelStyle: TextStyle(color: Colors.grey),
+                  prefixIcon: Icon(Icons.phone, color: Colors.redAccent),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              SizedBox(height: 15),
+
+              TextField(
+                controller: _passwordCtrl,
+                obscureText: true,
+                style: TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  labelText: "Password (የይለፍ ቃል)",
+                  labelStyle: TextStyle(color: Colors.grey),
+                  prefixIcon: Icon(Icons.lock, color: Colors.redAccent),
+                  filled: true,
+                  fillColor: Colors.grey[900],
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                ),
+              ),
+              SizedBox(height: 30),
+
+              isLoading
+                ? Center(child: CircularProgressIndicator(color: Colors.redAccent))
+                : ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.redAccent,
+                      minimumSize: Size(double.infinity, 50),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: _proceedAuth,
+                    child: Text(isLogin ? "Login 🚀" : "Continue (ቀጥል) ➡️", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ),
+              SizedBox(height: 20),
+
+              Center(
+                child: TextButton(
+                  onPressed: () => setState(() => isLogin = !isLogin),
+                  child: Text(
+                    isLogin ? "Don't have an account? Sign Up with Phone" : "Already have an account? Login",
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
+                  ),
+                ),
+              )
+            ],
           ),
-          BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Inbox'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+        ),
       ),
     );
   }
 }
 
-// ================= 1. HOME FEED (ከደመና ዳታቤዝ በቀጥታ የሚመጣ) =================
+// ================= STEP 2: USERNAME + PROFILE PICTURE OR SKIP =================
+class SetupProfileScreen extends StatefulWidget {
+  final String phoneNumber;
+  final String password;
+  SetupProfileScreen({required this.phoneNumber, required this.password});
+
+  @override
+  _SetupProfileScreenState createState() => _SetupProfileScreenState();
+}
+
+class _SetupProfileScreenState extends State<SetupProfileScreen> {
+  final _usernameCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final ImagePicker _picker = ImagePicker();
+  String? localAvatarPath;
+  bool isSaving = false;
+
+  void _pickAvatar() async {
+    final XFile? img = await _picker.pickImage(source: ImageSource.gallery);
+    if (img != null) {
+      setState(() => localAvatarPath = img.path);
+    }
+  }
+
+  void _finishRegistration({bool isSkipped = false}) async {
+    setState(() => isSaving = true);
+
+    String finalUsername = _usernameCtrl.text.trim();
+    if (finalUsername.isEmpty || isSkipped) {
+      final randSuffix = widget.phoneNumber.length >= 4 ? widget.phoneNumber.substring(widget.phoneNumber.length - 4) : "user";
+      finalUsername = "user_$randSuffix";
+    }
+    if (!finalUsername.startsWith('@')) {
+      finalUsername = "@$finalUsername";
+    }
+
+    String finalName = _nameCtrl.text.trim();
+    if (finalName.isEmpty || isSkipped) {
+      finalName = finalUsername.replaceAll('@', '');
+    }
+
+    String finalAvatar = localAvatarPath ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200";
+
+    // Save session in SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isLoggedIn', true);
+    await prefs.setString('phone', widget.phoneNumber);
+    await prefs.setString('username', finalUsername);
+    await prefs.setString('name', finalName);
+    await prefs.setString('avatar', finalAvatar);
+
+    AppState.isLoggedIn = true;
+    AppState.userProfile['phone'] = widget.phoneNumber;
+    AppState.userProfile['username'] = finalUsername;
+    AppState.userProfile['name'] = finalName;
+    AppState.userProfile['avatar'] = finalAvatar;
+
+    // Reset following to 0
+    AppState.userProfile['following'] = "0";
+    AppState.userProfile['followers'] = "0";
+    AppState.userProfile['likes'] = "0";
+
+    setState(() => isSaving = false);
+
+    Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (c) => MainNavigationScreen()), (r) => false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text("Profile Setup"),
+        actions: [
+          // SKIP BUTTON (ለመዝለል)
+          TextButton(
+            onPressed: isSaving ? null : () => _finishRegistration(isSkipped: true),
+            child: Text("Skip (ዝለል)", style: TextStyle(color: Colors.grey, fontSize: 15, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(height: 10),
+            Text("Set up your Profile 📸", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+            SizedBox(height: 6),
+            Text("Add your photo and choose a unique username", style: TextStyle(color: Colors.grey, fontSize: 13)),
+            SizedBox(height: 25),
+
+            // Profile Picture Selector
+            GestureDetector(
+              onTap: _pickAvatar,
+              child: Stack(
+                alignment: Alignment.bottomRight,
+                children: [
+                  CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.grey[900],
+                    backgroundImage: localAvatarPath != null
+                        ? FileImage(File(localAvatarPath!))
+                        : NetworkImage("https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200") as ImageProvider,
+                  ),
+                  Container(
+                    padding: EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                    child: Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(height: 8),
+            Text("Tap to add photo (ፎቶ ምረጥ)", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            SizedBox(height: 30),
+
+            TextField(
+              controller: _usernameCtrl,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: "Choose Username (የተጠቃሚ ስም)",
+                hintText: "e.g. yared_tech",
+                prefixIcon: Icon(Icons.alternate_email, color: Colors.redAccent),
+                filled: true,
+                fillColor: Colors.grey[900],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            SizedBox(height: 15),
+
+            TextField(
+              controller: _nameCtrl,
+              style: TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: "Full Name (ሙሉ ስም)",
+                hintText: "e.g. Yared Nigusse",
+                prefixIcon: Icon(Icons.person, color: Colors.redAccent),
+                filled: true,
+                fillColor: Colors.grey[900],
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+            ),
+            SizedBox(height: 35),
+
+            isSaving
+              ? CircularProgressIndicator(color: Colors.redAccent)
+              : ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    minimumSize: Size(double.infinity, 50),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => _finishRegistration(isSkipped: false),
+                  child: Text("Save & Enter TikTak 🚀", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white)),
+                ),
+            SizedBox(height: 15),
+
+            TextButton(
+              onPressed: isSaving ? null : () => _finishRegistration(isSkipped: true),
+              child: Text("Skip for now (አሁን ይለፈኝ)", style: TextStyle(color: Colors.grey, fontSize: 14)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================= 2. FEED SCREEN =================
 class FeedScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? customPosts;
   FeedScreen({this.customPosts});
@@ -131,7 +421,6 @@ class _FeedScreenState extends State<FeedScreen> {
   List<Map<String, dynamic>> posts = [];
   bool isLoading = true;
 
-  // የተረጋገጡ ነባሪ ቪዲዮዎች (ዳታቤዙ ባዶ ከሆነ የሚያሳያቸው)
   final List<Map<String, dynamic>> defaultSeedPosts = [
     {
       "id": "seed_1",
@@ -160,11 +449,10 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void initState() {
     super.initState();
-    _loadLiveFeedFromCloud();
+    _loadLiveFeed();
   }
 
-  // ከ MongoDB ደመና ዳታቤዝ ቪዲዮዎችን በሙሉ ማምጣት
-  Future<void> _loadLiveFeedFromCloud() async {
+  Future<void> _loadLiveFeed() async {
     try {
       final response = await http.get(Uri.parse("https://tiktak-backend.onrender.com/api/videos/feed"));
       if (response.statusCode == 200) {
@@ -184,7 +472,7 @@ class _FeedScreenState extends State<FeedScreen> {
               "userAvatar": uavatar,
               "caption": e["caption"] ?? "",
               "songName": e["songName"] ?? "Original Sound",
-              "likes": (e["likes"] is List) ? (e["likes"] as List).length : (e["likes"] ?? 1),
+              "likes": (e["likes"] is List) ? (e["likes"] as List).length : 12,
               "tags": (e["caption"] ?? "").toString().toLowerCase().split(' ')
             };
           }).toList();
@@ -200,9 +488,7 @@ class _FeedScreenState extends State<FeedScreen> {
     } catch (_) {}
 
     setState(() {
-      if (AppState.allPosts.isEmpty) {
-        AppState.allPosts = List.from(defaultSeedPosts);
-      }
+      if (AppState.allPosts.isEmpty) AppState.allPosts = List.from(defaultSeedPosts);
       posts = widget.customPosts ?? AppState.allPosts;
       isLoading = false;
     });
@@ -214,21 +500,56 @@ class _FeedScreenState extends State<FeedScreen> {
       return Center(child: CircularProgressIndicator(color: Colors.redAccent));
     }
 
-    return RefreshIndicator(
-      color: Colors.redAccent,
-      onRefresh: _loadLiveFeedFromCloud,
-      child: PageView.builder(
-        scrollDirection: Axis.vertical,
-        physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-        itemCount: posts.length,
-        itemBuilder: (context, index) {
-          return TikTokCard(
-            key: ValueKey(posts[index]['id'] ?? index),
-            post: posts[index],
-            onStateChanged: () => setState(() {}),
-          );
-        },
-      ),
+    return Stack(
+      children: [
+        RefreshIndicator(
+          color: Colors.redAccent,
+          onRefresh: _loadLiveFeed,
+          child: PageView.builder(
+            scrollDirection: Axis.vertical,
+            physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+            itemCount: posts.length,
+            itemBuilder: (context, index) {
+              return TikTokCard(
+                key: ValueKey(posts[index]['id'] ?? index),
+                post: posts[index],
+                onStateChanged: () => setState(() {}),
+              );
+            },
+          ),
+        ),
+
+        Positioned(
+          top: 40,
+          left: 0,
+          right: 0,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => LiveStreamingRoom())),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(15)),
+                  child: Row(
+                    children: [
+                      Icon(Icons.live_tv, color: Colors.white, size: 15),
+                      SizedBox(width: 4),
+                      Text("LIVE 🔴", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: 25),
+              Text("Following", style: TextStyle(color: Colors.white60, fontSize: 16, fontWeight: FontWeight.bold)),
+              SizedBox(width: 15),
+              Text("|", style: TextStyle(color: Colors.white30)),
+              SizedBox(width: 15),
+              Text("For You", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -245,7 +566,6 @@ class TikTokCard extends StatefulWidget {
 class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateMixin {
   VideoPlayerController? _mediaController;
   late AnimationController _discAnim;
-  bool isLiked = false;
   bool isPlaying = true;
   bool isPhoto = false;
   bool isInitialized = false;
@@ -254,19 +574,16 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     isPhoto = widget.post['type'] == 'photo' || (widget.post['imageUrl'] != null && widget.post['videoUrl'] == null);
-
     _discAnim = AnimationController(vsync: this, duration: Duration(seconds: 4))..repeat();
-
     _initPlayer();
   }
 
   void _initPlayer() {
     if (isPhoto) return;
-
     final mediaPath = widget.post['videoUrl'] ?? widget.post['imageUrl'] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
 
     try {
-      if (mediaPath.toString().startsWith("http://") || mediaPath.toString().startsWith("https://")) {
+      if (mediaPath.toString().startsWith("http")) {
         _mediaController = VideoPlayerController.networkUrl(Uri.parse(mediaPath));
       } else {
         final cleanPath = mediaPath.toString().replaceFirst("file://", "");
@@ -275,27 +592,12 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
 
       _mediaController!.initialize().then((_) {
         if (mounted) {
-          setState(() {
-            isInitialized = true;
-          });
+          setState(() => isInitialized = true);
           _mediaController!.setVolume(1.0);
           _mediaController!.play();
           _mediaController!.setLooping(true);
         }
-      }).catchError((_) {
-        if (mounted) {
-          _mediaController = VideoPlayerController.networkUrl(
-            Uri.parse("https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"),
-          )..initialize().then((_) {
-              if (mounted) {
-                setState(() { isInitialized = true; });
-                _mediaController!.setVolume(1.0);
-                _mediaController!.play();
-                _mediaController!.setLooping(true);
-              }
-            });
-        }
-      });
+      }).catchError((_) {});
     } catch (_) {}
   }
 
@@ -326,22 +628,107 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
     setState(() {
       if (AppState.followedUsers.contains(username)) {
         AppState.followedUsers.remove(username);
+        int current = int.tryParse(AppState.userProfile['following'] ?? "0") ?? 1;
+        AppState.userProfile['following'] = "${(current - 1) < 0 ? 0 : current - 1}";
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$username Unfollowed")));
       } else {
         AppState.followedUsers.add(username);
+        int current = int.tryParse(AppState.userProfile['following'] ?? "0") ?? 0;
+        AppState.userProfile['following'] = "${current + 1}";
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("$username Following 🎉")));
       }
     });
     widget.onStateChanged();
   }
 
-  Widget _buildPhotoWidget(String path) {
-    if (path.startsWith("http://") || path.startsWith("https://")) {
-      return Image.network(path, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.black));
-    } else {
-      final clean = path.replaceFirst("file://", "");
-      return Image.file(File(clean), fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.black));
-    }
+  void _openShareModal() {
+    final postUrl = "https://tiktak.app/v/${widget.post['id']}";
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) => Container(
+        height: 380,
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Share Video 📲", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+            SizedBox(height: 12),
+            Text("Send to Friends:", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            Divider(color: Colors.grey[800]),
+            Expanded(
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: AppState.friendsList.length,
+                itemBuilder: (context, idx) {
+                  final friend = AppState.friendsList[idx];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Column(
+                      children: [
+                        CircleAvatar(radius: 28, backgroundImage: NetworkImage(friend["avatar"]!)),
+                        SizedBox(height: 6),
+                        Text(friend["name"]!, style: TextStyle(color: Colors.white, fontSize: 12)),
+                        SizedBox(height: 6),
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(55, 26)),
+                          onPressed: () {
+                            final currentChat = AppState.directChats[friend["username"]] ?? [];
+                            currentChat.add({
+                              "sender": AppState.userProfile['username'] ?? "@user",
+                              "text": "Shared Video 🎬: ${widget.post['caption']}",
+                              "time": "Just now",
+                              "isVideo": true,
+                              "videoData": widget.post
+                            });
+                            AppState.directChats[friend["username"]!] = currentChat;
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sent to ${friend['name']}! 🚀")));
+                          },
+                          child: Text("Send", style: TextStyle(fontSize: 10)),
+                        )
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            Divider(color: Colors.grey[800]),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800], padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: postUrl));
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link Copied to Clipboard! 📋🔗")));
+                  },
+                  icon: Icon(Icons.copy, color: Colors.white, size: 18),
+                  label: Text("Copy Link", style: TextStyle(color: Colors.white)),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.amber[800], padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+                  onPressed: () {
+                    final postId = widget.post['id'] ?? "1";
+                    setState(() {
+                      AppState.repostedPostIds.add(postId);
+                    });
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("You Reposted this video! 🔄")));
+                    widget.onStateChanged();
+                  },
+                  icon: Icon(Icons.repeat, color: Colors.white, size: 18),
+                  label: Text("Repost 🔄", style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
   }
 
   void _openComments() {
@@ -373,7 +760,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                   Divider(color: Colors.grey[800]),
                   Expanded(
                     child: comments.isEmpty
-                      ? Center(child: Text("የመጀመሪያው አስተያየት ሰጪ ይሁኑ! 💬", style: TextStyle(color: Colors.grey)))
+                      ? Center(child: Text("Be the first to comment! 💬", style: TextStyle(color: Colors.grey)))
                       : ListView.builder(
                           itemCount: comments.length,
                           itemBuilder: (context, idx) {
@@ -397,7 +784,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                             controller: textController,
                             style: TextStyle(color: Colors.white),
                             decoration: InputDecoration(
-                              hintText: "Add a comment as ${AppState.userProfile['username']}...",
+                              hintText: "Comment as ${AppState.userProfile['username']}...",
                               hintStyle: TextStyle(color: Colors.grey),
                               border: InputBorder.none,
                             ),
@@ -409,7 +796,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                             if (textController.text.trim().isEmpty) return;
                             setModalState(() {
                               comments.insert(0, {
-                                "user": AppState.userProfile['username'] ?? "@yared",
+                                "user": AppState.userProfile['username'] ?? "@user",
                                 "text": textController.text.trim(),
                                 "time": "Just now"
                               });
@@ -436,6 +823,9 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
     final username = widget.post['username'] ?? "@creator";
     final isFollowing = AppState.followedUsers.contains(username);
     final postId = widget.post['id'] ?? "1";
+    final isLiked = AppState.likedPostIds.contains(postId);
+    final isSaved = AppState.savedPostIds.contains(postId);
+    final isReposted = AppState.repostedPostIds.contains(postId);
     final commentCount = (AppState.commentsDb[postId] ?? []).length;
     final totalLikes = (widget.post['likes'] as int? ?? 10) + (isLiked ? 1 : 0);
     final photoUrl = widget.post['imageUrl'] ?? widget.post['videoUrl'] ?? 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=800';
@@ -446,7 +836,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
         fit: StackFit.expand,
         children: [
           if (isPhoto)
-            _buildPhotoWidget(photoUrl)
+            Image.network(photoUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.black))
           else if (isInitialized && _mediaController != null)
             SizedBox.expand(
               child: FittedBox(
@@ -470,6 +860,20 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (isReposted)
+                  Container(
+                    margin: EdgeInsets.only(bottom: 6),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(10)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.repeat, color: Colors.amber, size: 14),
+                        SizedBox(width: 4),
+                        Text("You Reposted", style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 Text(username, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
                 SizedBox(height: 6),
                 Container(
@@ -506,44 +910,72 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
                         onTap: _toggleFollow,
                         child: Container(
                           padding: EdgeInsets.all(2),
-                          decoration: BoxDecoration(
-                            color: isFollowing ? Colors.grey : Colors.redAccent,
-                            shape: BoxShape.circle,
-                          ),
+                          decoration: BoxDecoration(color: isFollowing ? Colors.grey : Colors.redAccent, shape: BoxShape.circle),
                           child: Icon(isFollowing ? Icons.check : Icons.add, color: Colors.white, size: 16),
                         ),
                       ),
                     ),
                   ],
                 ),
-                SizedBox(height: 18),
+                SizedBox(height: 16),
+
                 IconButton(
-                  icon: Icon(Icons.favorite, color: isLiked ? Colors.redAccent : Colors.white, size: 38),
-                  onPressed: () => setState(() => isLiked = !isLiked),
+                  icon: Icon(Icons.favorite, color: isLiked ? Colors.redAccent : Colors.white, size: 36),
+                  onPressed: () {
+                    setState(() {
+                      if (isLiked) {
+                        AppState.likedPostIds.remove(postId);
+                      } else {
+                        AppState.likedPostIds.add(postId);
+                      }
+                    });
+                    widget.onStateChanged();
+                  },
                 ),
                 Text("$totalLikes", style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-                SizedBox(height: 14),
+                SizedBox(height: 12),
+
                 IconButton(
-                  icon: Icon(Icons.comment, color: Colors.white, size: 36),
+                  icon: Icon(Icons.comment, color: Colors.white, size: 34),
                   onPressed: _openComments,
                 ),
                 Text("$commentCount", style: TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-                SizedBox(height: 14),
+                SizedBox(height: 12),
+
                 IconButton(
-                  icon: Icon(Icons.share, color: Colors.white, size: 36),
-                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Link Copied! 🔗"))),
+                  icon: Icon(isSaved ? Icons.bookmark : Icons.bookmark_border, color: isSaved ? Colors.amber : Colors.white, size: 34),
+                  onPressed: () {
+                    setState(() {
+                      if (isSaved) {
+                        AppState.savedPostIds.remove(postId);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Removed from Saved 🔖")));
+                      } else {
+                        AppState.savedPostIds.add(postId);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Saved to Favorites! 🔖✨")));
+                      }
+                    });
+                    widget.onStateChanged();
+                  },
+                ),
+                Text("Save", style: TextStyle(fontSize: 12, color: Colors.white)),
+                SizedBox(height: 12),
+
+                IconButton(
+                  icon: Icon(Icons.send_rounded, color: Colors.white, size: 32),
+                  onPressed: _openShareModal,
                 ),
                 Text("Share", style: TextStyle(fontSize: 12, color: Colors.white)),
-                SizedBox(height: 18),
+                SizedBox(height: 16),
+
                 RotationTransition(
                   turns: _discAnim,
                   child: Container(
-                    width: 45,
-                    height: 45,
+                    width: 42,
+                    height: 42,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Colors.black,
-                      border: Border.all(color: Colors.white30, width: 6),
+                      border: Border.all(color: Colors.white30, width: 5),
                       image: DecorationImage(image: NetworkImage("https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"), fit: BoxFit.cover),
                     ),
                   ),
@@ -557,277 +989,135 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   }
 }
 
-// ================= 2. REAL PHONE CAMERA & CLOUD UPLOADER =================
-class RealCameraStudio extends StatefulWidget {
-  final VoidCallback onPostComplete;
-  RealCameraStudio({required this.onPostComplete});
-
+// ================= 3. LIVE STREAMING ROOM =================
+class LiveStreamingRoom extends StatefulWidget {
   @override
-  _RealCameraStudioState createState() => _RealCameraStudioState();
+  _LiveStreamingRoomState createState() => _LiveStreamingRoomState();
 }
 
-class _RealCameraStudioState extends State<RealCameraStudio> {
-  final ImagePicker _picker = ImagePicker();
-  final TextEditingController _captionCtrl = TextEditingController();
-  
-  Map<String, String> selectedSound = AppState.globalMusic[0];
-  XFile? pickedFile;
-  bool isVideo = true;
-  bool isUploading = false;
-
-  // 1. በስልክ ካሜራ ቪዲዮ መቅረጽ
-  Future<void> _recordVideoWithCamera() async {
-    final XFile? video = await _picker.pickVideo(source: ImageSource.camera, maxDuration: Duration(seconds: 60));
-    if (video != null) {
-      setState(() { pickedFile = video; isVideo = true; });
-      _openPublishModal();
-    }
-  }
-
-  // 2. በስልክ ካሜራ ፎቶ ማንሳት
-  Future<void> _takePhotoWithCamera() async {
-    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
-    if (photo != null) {
-      setState(() { pickedFile = photo; isVideo = false; });
-      _openPublishModal();
-    }
-  }
-
-  // 3. ከስልክ ጋለሪ መምረጥ
-  Future<void> _pickFromGallery() async {
-    final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
-    if (file != null) {
-      setState(() { pickedFile = file; isVideo = true; });
-      _openPublishModal();
-    } else {
-      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
-      if (image != null) {
-        setState(() { pickedFile = image; isVideo = false; });
-        _openPublishModal();
-      }
-    }
-  }
-
-  // 4. ቪዲዮውን በቀጥታ ወደ ደመና ሰርቨር (MongoDB & Cloud) መላኪያ
-  Future<void> _uploadPostToCloud() async {
-    setState(() => isUploading = true);
-
-    try {
-      // ቪዲዮውን ወደ Render ሰርቨር መጫን
-      final response = await http.post(
-        Uri.parse("https://tiktak-backend.onrender.com/api/videos/upload"),
-        headers: {"Content-Type": "application/json"},
-        body: json.encode({
-          "userId": "64fb1234567890abcd123456",
-          "username": AppState.userProfile['username'] ?? "@yared_official",
-          "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-          "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
-          "type": isVideo ? "video" : "photo",
-          "caption": _captionCtrl.text.trim().isEmpty ? "My New TikTak Post ✨" : _captionCtrl.text.trim(),
-          "songName": selectedSound["name"],
-        }),
-      );
-
-      final newPost = {
-        "id": DateTime.now().millisecondsSinceEpoch.toString(),
-        "type": isVideo ? "video" : "photo",
-        "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-        "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
-        "username": AppState.userProfile['username'] ?? "@yared_official",
-        "userAvatar": AppState.userProfile['avatar'] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
-        "caption": _captionCtrl.text.trim().isEmpty ? "My New TikTak Post ✨" : _captionCtrl.text.trim(),
-        "songName": selectedSound["name"],
-        "likes": 1,
-        "tags": ["ethiopia", "viral", "habesha"]
-      };
-
-      // በቋሚነት ወደ ዝርዝሩ መጨመር
-      AppState.allPosts.insert(0, newPost);
-
-      setState(() => isUploading = false);
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ቪዲዮው በደመና ዳታቤዝ ተቀምጧል! ለሁሉም ሰው ደርሷል 🎉")));
-      widget.onPostComplete();
-    } catch (e) {
-      setState(() => isUploading = false);
-      Navigator.pop(context);
-      widget.onPostComplete();
-    }
-  }
-
-  void _openPublishModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.grey[900],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => StatefulBuilder(
-        builder: (context, setModalState) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text("Publish to TikTak Cloud 🚀", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                SizedBox(height: 12),
-                TextField(
-                  controller: _captionCtrl,
-                  style: TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    hintText: "Write caption... #ethiopia #viral #habesha",
-                    hintStyle: TextStyle(color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.black,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-                  ),
-                ),
-                SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.music_note, color: Colors.redAccent, size: 18),
-                    SizedBox(width: 6),
-                    Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis)),
-                  ],
-                ),
-                SizedBox(height: 20),
-                Center(
-                  child: isUploading
-                    ? CircularProgressIndicator(color: Colors.redAccent)
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(double.infinity, 48)),
-                        onPressed: _uploadPostToCloud,
-                        child: Text("Post Now (Save to Database) 🚀", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                ),
-                SizedBox(height: 20),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+class _LiveStreamingRoomState extends State<LiveStreamingRoom> {
+  final List<String> liveMessages = [
+    "🔥 selam: ዋው እንዴት ያምራል!",
+    "❤️ dawit: Welcome to live stream!",
+    "👏 helen: ድምፅህ በጣም ደስ ይላል",
+    "🚀 aman: Keep going bro!"
+  ];
+  final _chatCtrl = TextEditingController();
+  int heartsCount = 1420;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, title: Text("TikTak Studio 🎬"), centerTitle: true),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
-        child: Column(
-          children: [
-            GestureDetector(
-              onTap: () {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.grey[900],
-                  builder: (c) => Container(
-                    padding: EdgeInsets.all(16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text("Select Sound 🎵", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-                        Divider(),
-                        ...AppState.globalMusic.map((m) => ListTile(
-                          leading: Icon(Icons.music_note, color: Colors.redAccent),
-                          title: Text(m["name"]!, style: TextStyle(color: Colors.white)),
-                          trailing: selectedSound["name"] == m["name"] ? Icon(Icons.check, color: Colors.redAccent) : null,
-                          onTap: () {
-                            setState(() => selectedSound = m);
-                            Navigator.pop(context);
-                          },
-                        )).toList(),
-                      ],
-                    ),
-                  ),
-                );
-              },
-              child: Container(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
-                child: Row(
-                  children: [
-                    Icon(Icons.music_note, color: Colors.redAccent),
-                    SizedBox(width: 10),
-                    Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
-                    Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 14),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 30),
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.network("https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800", fit: BoxFit.cover),
+          Container(color: Colors.black45),
 
-            InkWell(
-              onTap: _recordVideoWithCamera,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                width: double.infinity,
-                padding: EdgeInsets.all(25),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Colors.redAccent, Colors.deepOrange]),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  children: [
-                    Icon(Icons.videocam_rounded, size: 60, color: Colors.white),
-                    SizedBox(height: 10),
-                    Text("📹 በካሜራ ቪዲዮ ቅረጽ", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
-                    Text("የስልክህን ካሜራ ከፍቶ ቪዲዮ ይቀርጻል", style: TextStyle(color: Colors.white70, fontSize: 12)),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(height: 20),
-
-            Row(
+          Positioned(
+            top: 45,
+            left: 15,
+            right: 15,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: _takePhotoWithCamera,
-                    borderRadius: BorderRadius.circular(15),
-                    child: Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
-                      child: Column(
-                        children: [
-                          Icon(Icons.camera_alt, size: 36, color: Colors.amber),
-                          SizedBox(height: 8),
-                          Text("📸 ፎቶ አንሳ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    children: [
+                      CircleAvatar(radius: 16, backgroundImage: NetworkImage("https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200")),
+                      SizedBox(width: 8),
+                      Text("selam_live", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                      SizedBox(width: 8),
+                      Container(
+                        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(10)),
+                        child: Text("LIVE", style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      )
+                    ],
                   ),
                 ),
-                SizedBox(width: 15),
-                Expanded(
-                  child: InkWell(
-                    onTap: _pickFromGallery,
-                    borderRadius: BorderRadius.circular(15),
-                    child: Container(
-                      padding: EdgeInsets.all(20),
-                      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
-                      child: Column(
-                        children: [
-                          Icon(Icons.photo_library, size: 36, color: Colors.blueAccent),
-                          SizedBox(height: 8),
-                          Text("🖼️ ከጋለሪ ምረጥ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
+                Row(
+                  children: [
+                    Container(
+                      padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(15)),
+                      child: Text("👥 3.4K Viewers", style: TextStyle(color: Colors.white, fontSize: 12)),
                     ),
-                  ),
-                ),
+                    IconButton(icon: Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+                  ],
+                )
               ],
             ),
-          ],
-        ),
+          ),
+
+          Positioned(
+            bottom: 80,
+            left: 15,
+            child: Container(
+              height: 180,
+              width: MediaQuery.of(context).size.width * 0.75,
+              child: ListView.builder(
+                itemCount: liveMessages.length,
+                itemBuilder: (context, idx) => Container(
+                  margin: EdgeInsets.symmetric(vertical: 3),
+                  padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(15)),
+                  child: Text(liveMessages[idx], style: TextStyle(color: Colors.white, fontSize: 13)),
+                ),
+              ),
+            ),
+          ),
+
+          Positioned(
+            bottom: 15,
+            left: 15,
+            right: 15,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(25)),
+                    child: TextField(
+                      controller: _chatCtrl,
+                      style: TextStyle(color: Colors.white),
+                      decoration: InputDecoration(hintText: "Say something in LIVE...", hintStyle: TextStyle(color: Colors.grey), border: InputBorder.none),
+                      onSubmitted: (val) {
+                        if (val.trim().isNotEmpty) {
+                          setState(() {
+                            liveMessages.add("💬 ${AppState.userProfile['username']}: $val");
+                            _chatCtrl.clear();
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ),
+                SizedBox(width: 10),
+                GestureDetector(
+                  onTap: () {
+                    setState(() => heartsCount += 1);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Sent ❤️ Like to Live Host!"), duration: Duration(milliseconds: 500)));
+                  },
+                  child: Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                    child: Icon(Icons.favorite, color: Colors.white, size: 24),
+                  ),
+                )
+              ],
+            ),
+          )
+        ],
       ),
     );
   }
 }
 
-// ================= 3. DISCOVER SCREEN =================
+// ================= 4. DISCOVER / SEARCH SCREEN =================
 class DiscoverScreen extends StatefulWidget {
   @override
   _DiscoverScreenState createState() => _DiscoverScreenState();
@@ -867,7 +1157,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
           onChanged: _filterSearch,
           style: TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: "Search 'Ethiopia girl', 'dance', 'comedy'...",
+            hintText: "Search posts, 'Ethiopia girl', 'dance'...",
             hintStyle: TextStyle(color: Colors.grey, fontSize: 14),
             prefixIcon: Icon(Icons.search, color: Colors.redAccent),
             filled: true,
@@ -906,34 +1196,458 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
             ),
           ),
           Expanded(
-            child: GridView.builder(
-              padding: EdgeInsets.all(8),
-              itemCount: searchResults.length,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.72),
-              itemBuilder: (context, index) {
-                final item = searchResults[index];
-                final isPhoto = item['type'] == 'photo';
-                final previewUrl = isPhoto ? item['imageUrl'] : 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500';
+            child: searchResults.isEmpty
+              ? Center(child: Text("No posts found! Try another word 🔍", style: TextStyle(color: Colors.grey)))
+              : GridView.builder(
+                  padding: EdgeInsets.all(8),
+                  itemCount: searchResults.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 8, mainAxisSpacing: 8, childAspectRatio: 0.72),
+                  itemBuilder: (context, index) {
+                    final item = searchResults[index];
+                    final isPhoto = item['type'] == 'photo';
+                    final previewUrl = isPhoto ? item['imageUrl'] : 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=500';
 
-                return GestureDetector(
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => Scaffold(body: FeedScreen(customPosts: [item])))),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Stack(
-                      fit: StackFit.expand,
+                    return GestureDetector(
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => Scaffold(body: FeedScreen(customPosts: [item])))),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            Image.network(previewUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.grey[900])),
+                            Positioned(
+                              bottom: 8,
+                              left: 8,
+                              right: 8,
+                              child: Text(item['caption'] ?? '', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), maxLines: 2),
+                            )
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+          )
+        ],
+      ),
+    );
+  }
+}
+
+// ================= 5. REAL CAMERA & GO LIVE STUDIO =================
+class RealCameraStudio extends StatefulWidget {
+  final VoidCallback onPostComplete;
+  RealCameraStudio({required this.onPostComplete});
+
+  @override
+  _RealCameraStudioState createState() => _RealCameraStudioState();
+}
+
+class _RealCameraStudioState extends State<RealCameraStudio> {
+  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _captionCtrl = TextEditingController();
+  
+  Map<String, String> selectedSound = AppState.globalMusic[0];
+  XFile? pickedFile;
+  bool isVideo = true;
+  bool isUploading = false;
+
+  Future<void> _recordVideoWithCamera() async {
+    final XFile? video = await _picker.pickVideo(source: ImageSource.camera, maxDuration: Duration(seconds: 60));
+    if (video != null) {
+      setState(() { pickedFile = video; isVideo = true; });
+      _openPublishModal();
+    }
+  }
+
+  Future<void> _takePhotoWithCamera() async {
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    if (photo != null) {
+      setState(() { pickedFile = photo; isVideo = false; });
+      _openPublishModal();
+    }
+  }
+
+  Future<void> _pickFromGallery() async {
+    final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
+    if (file != null) {
+      setState(() { pickedFile = file; isVideo = true; });
+      _openPublishModal();
+    } else {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+      if (image != null) {
+        setState(() { pickedFile = image; isVideo = false; });
+        _openPublishModal();
+      }
+    }
+  }
+
+  Future<void> _uploadPostToCloud() async {
+    setState(() => isUploading = true);
+
+    final newPost = {
+      "id": DateTime.now().millisecondsSinceEpoch.toString(),
+      "type": isVideo ? "video" : "photo",
+      "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
+      "username": AppState.userProfile['username'] ?? "@user",
+      "userAvatar": AppState.userProfile['avatar'] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+      "caption": _captionCtrl.text.trim().isEmpty ? "New TikTak Post ✨" : _captionCtrl.text.trim(),
+      "songName": selectedSound["name"],
+      "likes": 1,
+      "tags": _captionCtrl.text.toLowerCase().split(' ')
+    };
+
+    AppState.allPosts.insert(0, newPost);
+
+    try {
+      await http.post(
+        Uri.parse("https://tiktak-backend.onrender.com/api/videos/upload"),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(newPost),
+      );
+    } catch (_) {}
+
+    setState(() => isUploading = false);
+    Navigator.pop(context);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Video Published to Cloud! 🚀")));
+    widget.onPostComplete();
+  }
+
+  void _openPublishModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Publish to TikTak 🚀", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                SizedBox(height: 12),
+                TextField(
+                  controller: _captionCtrl,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "Caption... #ethiopia #viral #habesha",
+                    hintStyle: TextStyle(color: Colors.grey),
+                    filled: true,
+                    fillColor: Colors.black,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                ),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.music_note, color: Colors.redAccent, size: 18),
+                    SizedBox(width: 6),
+                    Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                  ],
+                ),
+                SizedBox(height: 20),
+                Center(
+                  child: isUploading
+                    ? CircularProgressIndicator(color: Colors.redAccent)
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(double.infinity, 48)),
+                        onPressed: _uploadPostToCloud,
+                        child: Text("Post Now 🚀", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                ),
+                SizedBox(height: 20),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, title: Text("TikTak Studio 🎬"), centerTitle: true),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          children: [
+            GestureDetector(
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.grey[900],
+                  builder: (c) => Container(
+                    padding: EdgeInsets.all(16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Image.network(previewUrl, fit: BoxFit.cover, errorBuilder: (c, e, s) => Container(color: Colors.grey[900])),
-                        Positioned(
-                          bottom: 8,
-                          left: 8,
-                          right: 8,
-                          child: Text(item['caption'] ?? '', style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold), maxLines: 2),
-                        )
+                        Text("Select Sound 🎵", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                        Divider(),
+                        ...AppState.globalMusic.map((m) => ListTile(
+                          leading: Icon(Icons.music_note, color: Colors.redAccent),
+                          title: Text(m["name"]!, style: TextStyle(color: Colors.white)),
+                          onTap: () {
+                            setState(() => selectedSound = m);
+                            Navigator.pop(context);
+                          },
+                        )).toList(),
                       ],
                     ),
                   ),
                 );
               },
+              child: Container(
+                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
+                child: Row(
+                  children: [
+                    Icon(Icons.music_note, color: Colors.redAccent),
+                    SizedBox(width: 10),
+                    Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+                    Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 14),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 25),
+
+            InkWell(
+              onTap: _recordVideoWithCamera,
+              borderRadius: BorderRadius.circular(20),
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(colors: [Colors.redAccent, Colors.deepOrange]),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  children: [
+                    Icon(Icons.videocam_rounded, size: 60, color: Colors.white),
+                    SizedBox(height: 10),
+                    Text("📹 በካሜራ ቪዲዮ ቅረጽ (Record Video)", style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 15),
+
+            Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: _takePhotoWithCamera,
+                    borderRadius: BorderRadius.circular(15),
+                    child: Container(
+                      padding: EdgeInsets.all(18),
+                      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
+                      child: Column(
+                        children: [
+                          Icon(Icons.camera_alt, size: 32, color: Colors.amber),
+                          SizedBox(height: 6),
+                          Text("📸 ፎቶ አንሳ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: InkWell(
+                    onTap: _pickFromGallery,
+                    borderRadius: BorderRadius.circular(15),
+                    child: Container(
+                      padding: EdgeInsets.all(18),
+                      decoration: BoxDecoration(color: Colors.grey[900], borderRadius: BorderRadius.circular(15)),
+                      child: Column(
+                        children: [
+                          Icon(Icons.photo_library, size: 32, color: Colors.blueAccent),
+                          SizedBox(height: 6),
+                          Text("🖼️ ከጋለሪ ምረጥ", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20),
+
+            InkWell(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => LiveStreamingRoom())),
+              borderRadius: BorderRadius.circular(15),
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(15),
+                decoration: BoxDecoration(color: Colors.red[900], borderRadius: BorderRadius.circular(15)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.live_tv, color: Colors.white),
+                    SizedBox(width: 8),
+                    Text("Go LIVE 🔴 (የቀጥታ ስርጭት ጀምር)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ================= 6. INBOX & DIRECT CHAT =================
+class InboxScreen extends StatefulWidget {
+  @override
+  _InboxScreenState createState() => _InboxScreenState();
+}
+
+class _InboxScreenState extends State<InboxScreen> {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(backgroundColor: Colors.black, title: Text("Direct Messages 💬"), centerTitle: true),
+      body: ListView(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text("Friends You Follow (ጓደኞች)", style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
+          ),
+          ...AppState.friendsList.map((friend) {
+            final chats = AppState.directChats[friend["username"]] ?? [];
+            final lastMessage = chats.isNotEmpty ? chats.last["text"] : friend["lastMsg"];
+
+            return ListTile(
+              onTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (c) => DirectChatDetailScreen(friend: friend))).then((_) => setState(() {}));
+              },
+              leading: CircleAvatar(radius: 26, backgroundImage: NetworkImage(friend["avatar"]!)),
+              title: Text(friend["name"]!, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              subtitle: Text(lastMessage ?? '', style: TextStyle(color: Colors.grey, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: Icon(Icons.chat_bubble_outline, color: Colors.redAccent, size: 20),
+            );
+          }).toList(),
+        ],
+      ),
+    );
+  }
+}
+
+class DirectChatDetailScreen extends StatefulWidget {
+  final Map<String, String> friend;
+  DirectChatDetailScreen({required this.friend});
+
+  @override
+  _DirectChatDetailScreenState createState() => _DirectChatDetailScreenState();
+}
+
+class _DirectChatDetailScreenState extends State<DirectChatDetailScreen> {
+  final TextEditingController _msgCtrl = TextEditingController();
+
+  void _sendMessage() {
+    if (_msgCtrl.text.trim().isEmpty) return;
+
+    final currentChats = AppState.directChats[widget.friend["username"]] ?? [];
+    setState(() {
+      currentChats.add({
+        "sender": AppState.userProfile['username'] ?? "@user",
+        "text": _msgCtrl.text.trim(),
+        "time": "Just now",
+        "isVideo": false
+      });
+      AppState.directChats[widget.friend["username"]!] = currentChats;
+    });
+
+    _msgCtrl.clear();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final chats = AppState.directChats[widget.friend["username"]] ?? [];
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.grey[900],
+        title: Row(
+          children: [
+            CircleAvatar(radius: 18, backgroundImage: NetworkImage(widget.friend["avatar"]!)),
+            SizedBox(width: 10),
+            Text(widget.friend["name"]!, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView.builder(
+              padding: EdgeInsets.all(12),
+              itemCount: chats.length,
+              itemBuilder: (context, idx) {
+                final msg = chats[idx];
+                final isMe = msg["sender"] == AppState.userProfile['username'];
+                final isVideoShare = msg["isVideo"] == true;
+
+                return Align(
+                  alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                  child: Container(
+                    margin: EdgeInsets.symmetric(vertical: 4),
+                    padding: EdgeInsets.all(12),
+                    constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+                    decoration: BoxDecoration(color: isMe ? Colors.redAccent : Colors.grey[850], borderRadius: BorderRadius.circular(16)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (isVideoShare) ...[
+                          Row(
+                            children: [
+                              Icon(Icons.play_circle_fill, color: Colors.white, size: 18),
+                              SizedBox(width: 6),
+                              Text("Shared TikTak Video", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                            ],
+                          ),
+                          SizedBox(height: 6),
+                        ],
+                        Text(msg["text"] ?? '', style: TextStyle(color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            color: Colors.grey[900],
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _msgCtrl,
+                    style: TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: "Message ${widget.friend['name']}...",
+                      hintStyle: TextStyle(color: Colors.grey),
+                      filled: true,
+                      fillColor: Colors.black,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                CircleAvatar(
+                  backgroundColor: Colors.redAccent,
+                  child: IconButton(icon: Icon(Icons.send, color: Colors.white, size: 18), onPressed: _sendMessage),
+                ),
+              ],
             ),
           )
         ],
@@ -942,27 +1656,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
-// ================= 4. INBOX SCREEN =================
-class InboxScreen extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, title: Text("Notifications 💬"), centerTitle: true),
-      body: ListView(
-        children: [
-          ListTile(
-            leading: CircleAvatar(backgroundColor: Colors.redAccent, child: Icon(Icons.favorite, color: Colors.white)),
-            title: Text("@selam_official liked your post", style: TextStyle(color: Colors.white)),
-            subtitle: Text("1 minute ago", style: TextStyle(color: Colors.grey)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ================= 5. PROFILE SCREEN =================
+// ================= 7. PROFILE & SETTINGS =================
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onProfileUpdated;
   ProfileScreen({required this.onProfileUpdated});
@@ -971,48 +1665,172 @@ class ProfileScreen extends StatefulWidget {
   _ProfileScreenState createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  @override
-  Widget build(BuildContext context) {
-    final followingCount = AppState.followedUsers.length;
-    final user = AppState.userProfile;
+class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  final ImagePicker _picker = ImagePicker();
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(backgroundColor: Colors.black, title: Text(user["name"]!), centerTitle: true),
-      body: SingleChildScrollView(
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+  }
+
+  void _changeProfilePicture() async {
+    final XFile? image = await _picker.pickImage(source: ImageSource.gallery);
+    if (image != null) {
+      setState(() {
+        AppState.userProfile['avatar'] = image.path;
+      });
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('avatar', image.path);
+      widget.onProfileUpdated();
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Profile Picture Updated! 🎉")));
+    }
+  }
+
+  void _openSettings() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (c) => Container(
+        padding: EdgeInsets.all(20),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(height: 15),
-            CircleAvatar(radius: 45, backgroundImage: NetworkImage(user["avatar"]!)),
-            SizedBox(height: 10),
-            Text(user["username"]!, style: TextStyle(color: Colors.grey, fontSize: 14)),
-            SizedBox(height: 15),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _stat("Following", "$followingCount"),
-                _divider(),
-                _stat("Followers", "45.2K"),
-                _divider(),
-                _stat("Likes", "120K"),
-              ],
+            Text("Settings & Privacy ⚙️", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            Divider(color: Colors.grey[800]),
+            ListTile(
+              leading: Icon(Icons.add_a_photo, color: Colors.white),
+              title: Text("Change Profile Picture (ከጋለሪ ምረጥ)", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.pop(context);
+                _changeProfilePicture();
+              },
             ),
-            SizedBox(height: 15),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 30),
-              child: Text(user["bio"]!, textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 13)),
-            ),
-            SizedBox(height: 20),
-            GridView.builder(
-              shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              itemCount: 6,
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
-              itemBuilder: (context, index) => Container(color: Colors.grey[900], child: Center(child: Icon(Icons.play_arrow, color: Colors.white54))),
+            ListTile(
+              leading: Icon(Icons.logout, color: Colors.redAccent),
+              title: Text("Log Out 🚪", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+              onTap: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.clear();
+                AppState.isLoggedIn = false;
+                Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (c) => AuthPhoneScreen()), (r) => false);
+              },
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarWidget(String path) {
+    if (path.startsWith("http")) {
+      return CircleAvatar(radius: 42, backgroundImage: NetworkImage(path));
+    } else {
+      return CircleAvatar(radius: 42, backgroundImage: FileImage(File(path)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = AppState.userProfile;
+    final following = AppState.userProfile['following'] ?? "0";
+    final followers = AppState.userProfile['followers'] ?? "0";
+    final likes = AppState.userProfile['likes'] ?? "0";
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        title: Text(user["name"]!),
+        centerTitle: true,
+        actions: [
+          IconButton(icon: Icon(Icons.settings, color: Colors.white), onPressed: _openSettings),
+        ],
+      ),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, _) => [
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                SizedBox(height: 10),
+                GestureDetector(
+                  onTap: _changeProfilePicture,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      _buildAvatarWidget(user["avatar"]!),
+                      Container(
+                        padding: EdgeInsets.all(4),
+                        decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle),
+                        child: Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                      )
+                    ],
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(user["username"]!, style: TextStyle(color: Colors.grey, fontSize: 14)),
+                SizedBox(height: 15),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _stat("Following", following),
+                    _divider(),
+                    _stat("Followers", followers),
+                    _divider(),
+                    _stat("Likes", likes),
+                  ],
+                ),
+                SizedBox(height: 12),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 30),
+                  child: Text(user["bio"]!, textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, fontSize: 13)),
+                ),
+                SizedBox(height: 15),
+                TabBar(
+                  controller: _tabController,
+                  indicatorColor: Colors.redAccent,
+                  labelColor: Colors.white,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: [
+                    Tab(icon: Icon(Icons.grid_on), text: "Videos"),
+                    Tab(icon: Icon(Icons.repeat), text: "Reposts"),
+                    Tab(icon: Icon(Icons.bookmark), text: "Saved"),
+                    Tab(icon: Icon(Icons.favorite), text: "Liked"),
+                  ],
+                ),
+              ],
+            ),
+          )
+        ],
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _buildGrid(AppState.allPosts.length),
+            AppState.repostedPostIds.isEmpty
+              ? Center(child: Text("No reposted videos yet 🔄", style: TextStyle(color: Colors.grey)))
+              : _buildGrid(AppState.repostedPostIds.length),
+            AppState.savedPostIds.isEmpty
+              ? Center(child: Text("No saved favorites yet 🔖", style: TextStyle(color: Colors.grey)))
+              : _buildGrid(AppState.savedPostIds.length),
+            AppState.likedPostIds.isEmpty
+              ? Center(child: Text("No liked videos yet ❤️", style: TextStyle(color: Colors.grey)))
+              : _buildGrid(AppState.likedPostIds.length),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildGrid(int count) {
+    return GridView.builder(
+      padding: EdgeInsets.all(2),
+      itemCount: count == 0 ? 3 : count,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, crossAxisSpacing: 2, mainAxisSpacing: 2),
+      itemBuilder: (context, index) => Container(
+        color: Colors.grey[900],
+        child: Center(child: Icon(Icons.play_arrow, color: Colors.white54)),
       ),
     );
   }

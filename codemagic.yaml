@@ -7,7 +7,7 @@ workflows:
       flutter: stable
       java: 17
     scripts:
-      - name: Setup project structure and build APK
+      - name: Setup and Build Master APK
         script: |
           mkdir -p lib
           if [ -f "main.dart" ]; then
@@ -21,22 +21,6 @@ workflows:
           fi
 
           flutter pub add shared_preferences image_picker video_player http cupertino_icons
-
-          echo "flutter.minSdkVersion=21" >> android/local.properties
-
-          python3 -c "
-          import glob
-          for f in glob.glob('android/app/build.gradle*'):
-              with open(f, 'r') as file:
-                  c = file.read()
-              c = c.replace('minSdkVersion flutter.minSdkVersion', 'minSdkVersion 21')
-              c = c.replace('minSdk = flutter.minSdkVersion', 'minSdk = 21')
-              c = c.replace('minSdk = flutter.minSdk', 'minSdk = 21')
-              with open(f, 'w') as file:
-                  file.write(c)
-          "
-
           flutter build apk --debug --no-tree-shake-icons
-
     artifacts:
       - build/**/outputs/**/*.apk

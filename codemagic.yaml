@@ -29,7 +29,9 @@ workflows:
                   lines = f.readlines()
               with open(path, 'w') as f:
                   for line in lines:
-                      if 'minSdk' in line:
+                      if 'minSdkVersion' in line:
+                          f.write('        minSdkVersion 21\n')
+                      elif 'minSdk' in line:
                           f.write('        minSdk = 21\n')
                       else:
                           f.write(line)

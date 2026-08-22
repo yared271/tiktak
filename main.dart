@@ -402,7 +402,54 @@ class _SetupProfileScreenState extends State<SetupProfileScreen> {
   }
 }
 
-// ================= 2. FEED SCREEN =================
+// ================= 3. MAIN NAVIGATION SCREEN =================
+class MainNavigationScreen extends StatefulWidget {
+  @override
+  _MainNavigationScreenState createState() => _MainNavigationScreenState();
+}
+
+class _MainNavigationScreenState extends State<MainNavigationScreen> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final screens = [
+      FeedScreen(),
+      DiscoverScreen(),
+      RealCameraStudio(onPostComplete: () => setState(() => _currentIndex = 0)),
+      InboxScreen(),
+      ProfileScreen(onProfileUpdated: () => setState(() {})),
+    ];
+
+    return Scaffold(
+      body: screens[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        backgroundColor: Colors.black,
+        selectedItemColor: Colors.white,
+        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _currentIndex,
+        onTap: (index) => setState(() => _currentIndex = index),
+        items: [
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Discover'),
+          BottomNavigationBarItem(
+            icon: Container(
+              padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(8)),
+              child: Icon(Icons.add, color: Colors.white, size: 20),
+            ),
+            label: '',
+          ),
+          BottomNavigationBarItem(icon: Icon(Icons.message), label: 'Inbox'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+        ],
+      ),
+    );
+  }
+}
+
+// ================= 4. FEED SCREEN =================
 class FeedScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? customPosts;
   FeedScreen({this.customPosts});
@@ -1023,7 +1070,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   }
 }
 
-// ================= 3. LIVE STREAMING ROOM =================
+// ================= 5. LIVE STREAMING ROOM =================
 class LiveStreamingRoom extends StatefulWidget {
   @override
   _LiveStreamingRoomState createState() => _LiveStreamingRoomState();
@@ -1146,7 +1193,7 @@ class _LiveStreamingRoomState extends State<LiveStreamingRoom> {
   }
 }
 
-// ================= 4. DISCOVER / SEARCH SCREEN =================
+// ================= 6. DISCOVER / SEARCH SCREEN =================
 class DiscoverScreen extends StatefulWidget {
   @override
   _DiscoverScreenState createState() => _DiscoverScreenState();
@@ -1263,7 +1310,7 @@ class _DiscoverScreenState extends State<DiscoverScreen> {
   }
 }
 
-// ================= 5. REAL CAMERA & CLOUD UPLOAD STUDIO =================
+// ================= 7. REAL CAMERA & CLOUD UPLOAD STUDIO =================
 class RealCameraStudio extends StatefulWidget {
   final VoidCallback onPostComplete;
   RealCameraStudio({required this.onPostComplete});
@@ -1532,7 +1579,7 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
   }
 }
 
-// ================= 6. INBOX & DIRECT CHAT =================
+// ================= 8. INBOX & DIRECT CHAT =================
 class InboxScreen extends StatefulWidget {
   @override
   _InboxScreenState createState() => _InboxScreenState();
@@ -1685,7 +1732,7 @@ class _DirectChatDetailScreenState extends State<DirectChatDetailScreen> {
   }
 }
 
-// ================= 7. PROFILE & SETTINGS =================
+// ================= 9. PROFILE & SETTINGS =================
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onProfileUpdated;
   ProfileScreen({required this.onProfileUpdated});

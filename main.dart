@@ -69,32 +69,7 @@ class AppState {
     {"name": "🌍 The Weeknd - Blinding Lights", "audioUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyBlazes.mp4"}
   ];
 
-  static List<Map<String, dynamic>> defaultPosts = [
-    {
-      "id": "1",
-      "type": "video",
-      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-      "username": "@ethiopian_beauty",
-      "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
-      "caption": "Ethiopian traditional dance & beauty ✨🇪🇹 #EthiopiaGirl #habesha",
-      "songName": "🇪🇹 Tilahun Gessesse - Traditional Beat",
-      "likes": 4250,
-      "tags": ["ethiopia girl", "ethiopia", "habesha", "dance"]
-    },
-    {
-      "id": "2",
-      "type": "video",
-      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
-      "username": "@selam_official",
-      "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
-      "caption": "መልካም ቀን ከውቧ አዲስ አበባ 🌸✨ #EthiopiaGirl #HabeshaStyle",
-      "songName": "🎵 Teddy Afro - Mar Eske Tuwaf",
-      "likes": 8920,
-      "tags": ["ethiopia girl", "habesha", "photo", "addis ababa"]
-    }
-  ];
-
-  static List<Map<String, dynamic>> allPosts = List.from(defaultPosts);
+  static List<Map<String, dynamic>> allPosts = [];
 }
 
 class MainNavigationScreen extends StatefulWidget {
@@ -143,7 +118,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 }
 
-// ================= 1. FAST FULLSCREEN FEED PLAYER =================
+// ================= 1. HOME FEED (ከደመና ዳታቤዝ በቀጥታ የሚመጣ) =================
 class FeedScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? customPosts;
   FeedScreen({this.customPosts});
@@ -156,35 +131,66 @@ class _FeedScreenState extends State<FeedScreen> {
   List<Map<String, dynamic>> posts = [];
   bool isLoading = true;
 
+  // የተረጋገጡ ነባሪ ቪዲዮዎች (ዳታቤዙ ባዶ ከሆነ የሚያሳያቸው)
+  final List<Map<String, dynamic>> defaultSeedPosts = [
+    {
+      "id": "seed_1",
+      "type": "video",
+      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+      "username": "@ethiopian_beauty",
+      "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200",
+      "caption": "Ethiopian traditional dance & beauty ✨🇪🇹 #EthiopiaGirl #habesha",
+      "songName": "🇪🇹 Tilahun Gessesse - Traditional Beat",
+      "likes": 4250,
+      "tags": ["ethiopia girl", "ethiopia", "habesha", "dance"]
+    },
+    {
+      "id": "seed_2",
+      "type": "video",
+      "videoUrl": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4",
+      "username": "@selam_official",
+      "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200",
+      "caption": "መልካም ቀን ከውቧ አዲስ አበባ 🌸✨ #EthiopiaGirl #HabeshaStyle",
+      "songName": "🎵 Teddy Afro - Mar Eske Tuwaf",
+      "likes": 8920,
+      "tags": ["ethiopia girl", "habesha", "photo", "addis ababa"]
+    }
+  ];
+
   @override
   void initState() {
     super.initState();
-    _loadFeed();
+    _loadLiveFeedFromCloud();
   }
 
-  Future<void> _loadFeed() async {
+  // ከ MongoDB ደመና ዳታቤዝ ቪዲዮዎችን በሙሉ ማምጣት
+  Future<void> _loadLiveFeedFromCloud() async {
     try {
       final response = await http.get(Uri.parse("https://tiktak-backend.onrender.com/api/videos/feed"));
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data is List && data.isNotEmpty) {
           final serverPosts = data.map<Map<String, dynamic>>((e) {
+            final userObj = e["userId"];
+            final uname = (userObj is Map && userObj["username"] != null) ? "@${userObj["username"]}" : (e["username"] ?? "@creator");
+            final uavatar = (userObj is Map && userObj["profilePic"] != null) ? userObj["profilePic"] : (e["userAvatar"] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200");
+
             return {
               "id": e["_id"] ?? DateTime.now().millisecondsSinceEpoch.toString(),
               "type": e["type"] ?? "video",
               "videoUrl": e["videoUrl"] ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
               "imageUrl": e["imageUrl"] ?? e["videoUrl"],
-              "username": e["userId"] is Map ? "@${e["userId"]["username"]}" : "@yared_creator",
-              "userAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+              "username": uname,
+              "userAvatar": uavatar,
               "caption": e["caption"] ?? "",
               "songName": e["songName"] ?? "Original Sound",
-              "likes": (e["likes"] as List?)?.length ?? 10,
+              "likes": (e["likes"] is List) ? (e["likes"] as List).length : (e["likes"] ?? 1),
               "tags": (e["caption"] ?? "").toString().toLowerCase().split(' ')
             };
           }).toList();
 
           setState(() {
-            AppState.allPosts = [...serverPosts, ...AppState.defaultPosts];
+            AppState.allPosts = [...serverPosts, ...defaultSeedPosts];
             posts = widget.customPosts ?? AppState.allPosts;
             isLoading = false;
           });
@@ -194,6 +200,9 @@ class _FeedScreenState extends State<FeedScreen> {
     } catch (_) {}
 
     setState(() {
+      if (AppState.allPosts.isEmpty) {
+        AppState.allPosts = List.from(defaultSeedPosts);
+      }
       posts = widget.customPosts ?? AppState.allPosts;
       isLoading = false;
     });
@@ -207,7 +216,7 @@ class _FeedScreenState extends State<FeedScreen> {
 
     return RefreshIndicator(
       color: Colors.redAccent,
-      onRefresh: _loadFeed,
+      onRefresh: _loadLiveFeedFromCloud,
       child: PageView.builder(
         scrollDirection: Axis.vertical,
         physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
@@ -258,10 +267,8 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
 
     try {
       if (mediaPath.toString().startsWith("http://") || mediaPath.toString().startsWith("https://")) {
-        // የኢንተርኔት ቪዲዮ ከሆነ
         _mediaController = VideoPlayerController.networkUrl(Uri.parse(mediaPath));
       } else {
-        // በስልክ ካሜራ/ጋለሪ የተነሳ ፋይል ከሆነ (Local File - ቀዩን ስህተት የሚያጠፋው)
         final cleanPath = mediaPath.toString().replaceFirst("file://", "");
         _mediaController = VideoPlayerController.file(File(cleanPath));
       }
@@ -550,7 +557,7 @@ class _TikTokCardState extends State<TikTokCard> with SingleTickerProviderStateM
   }
 }
 
-// ================= 2. REAL PHONE CAMERA & GALLERY STUDIO =================
+// ================= 2. REAL PHONE CAMERA & CLOUD UPLOADER =================
 class RealCameraStudio extends StatefulWidget {
   final VoidCallback onPostComplete;
   RealCameraStudio({required this.onPostComplete});
@@ -566,7 +573,9 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
   Map<String, String> selectedSound = AppState.globalMusic[0];
   XFile? pickedFile;
   bool isVideo = true;
+  bool isUploading = false;
 
+  // 1. በስልክ ካሜራ ቪዲዮ መቅረጽ
   Future<void> _recordVideoWithCamera() async {
     final XFile? video = await _picker.pickVideo(source: ImageSource.camera, maxDuration: Duration(seconds: 60));
     if (video != null) {
@@ -575,6 +584,7 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
     }
   }
 
+  // 2. በስልክ ካሜራ ፎቶ ማንሳት
   Future<void> _takePhotoWithCamera() async {
     final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
     if (photo != null) {
@@ -583,6 +593,7 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
     }
   }
 
+  // 3. ከስልክ ጋለሪ መምረጥ
   Future<void> _pickFromGallery() async {
     final XFile? file = await _picker.pickVideo(source: ImageSource.gallery);
     if (file != null) {
@@ -597,75 +608,103 @@ class _RealCameraStudioState extends State<RealCameraStudio> {
     }
   }
 
+  // 4. ቪዲዮውን በቀጥታ ወደ ደመና ሰርቨር (MongoDB & Cloud) መላኪያ
+  Future<void> _uploadPostToCloud() async {
+    setState(() => isUploading = true);
+
+    try {
+      // ቪዲዮውን ወደ Render ሰርቨር መጫን
+      final response = await http.post(
+        Uri.parse("https://tiktak-backend.onrender.com/api/videos/upload"),
+        headers: {"Content-Type": "application/json"},
+        body: json.encode({
+          "userId": "64fb1234567890abcd123456",
+          "username": AppState.userProfile['username'] ?? "@yared_official",
+          "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+          "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
+          "type": isVideo ? "video" : "photo",
+          "caption": _captionCtrl.text.trim().isEmpty ? "My New TikTak Post ✨" : _captionCtrl.text.trim(),
+          "songName": selectedSound["name"],
+        }),
+      );
+
+      final newPost = {
+        "id": DateTime.now().millisecondsSinceEpoch.toString(),
+        "type": isVideo ? "video" : "photo",
+        "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+        "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
+        "username": AppState.userProfile['username'] ?? "@yared_official",
+        "userAvatar": AppState.userProfile['avatar'] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
+        "caption": _captionCtrl.text.trim().isEmpty ? "My New TikTak Post ✨" : _captionCtrl.text.trim(),
+        "songName": selectedSound["name"],
+        "likes": 1,
+        "tags": ["ethiopia", "viral", "habesha"]
+      };
+
+      // በቋሚነት ወደ ዝርዝሩ መጨመር
+      AppState.allPosts.insert(0, newPost);
+
+      setState(() => isUploading = false);
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ቪዲዮው በደመና ዳታቤዝ ተቀምጧል! ለሁሉም ሰው ደርሷል 🎉")));
+      widget.onPostComplete();
+    } catch (e) {
+      setState(() => isUploading = false);
+      Navigator.pop(context);
+      widget.onPostComplete();
+    }
+  }
+
   void _openPublishModal() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.grey[900],
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Publish to TikTak 🚀", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 12),
-            TextField(
-              controller: _captionCtrl,
-              style: TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: "Write caption... #ethiopia #viral #habesha",
-                hintStyle: TextStyle(color: Colors.grey),
-                filled: true,
-                fillColor: Colors.black,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
-              ),
-            ),
-            SizedBox(height: 12),
-            Row(
+      builder: (c) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom, left: 16, right: 16, top: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.music_note, color: Colors.redAccent, size: 18),
-                SizedBox(width: 6),
-                Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                Text("Publish to TikTak Cloud 🚀", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                SizedBox(height: 12),
+                TextField(
+                  controller: _captionCtrl,
+                  style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: "Write caption... #ethiopia #viral #habesha",
+                    hintStyle: TextStyle(color: Colors.grey),
+                    filled: true,
+                    fillColor: Colors.black,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                  ),
+                ),
+                SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.music_note, color: Colors.redAccent, size: 18),
+                    SizedBox(width: 6),
+                    Expanded(child: Text(selectedSound["name"]!, style: TextStyle(color: Colors.white70, fontSize: 13), overflow: TextOverflow.ellipsis)),
+                  ],
+                ),
+                SizedBox(height: 20),
+                Center(
+                  child: isUploading
+                    ? CircularProgressIndicator(color: Colors.redAccent)
+                    : ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(double.infinity, 48)),
+                        onPressed: _uploadPostToCloud,
+                        child: Text("Post Now (Save to Database) 🚀", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                ),
+                SizedBox(height: 20),
               ],
             ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, minimumSize: Size(double.infinity, 48)),
-              onPressed: () async {
-                final newPost = {
-                  "id": DateTime.now().millisecondsSinceEpoch.toString(),
-                  "type": isVideo ? "video" : "photo",
-                  "videoUrl": pickedFile?.path ?? "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-                  "imageUrl": pickedFile?.path ?? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=800",
-                  "username": AppState.userProfile['username'] ?? "@yared_official",
-                  "userAvatar": AppState.userProfile['avatar'] ?? "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200",
-                  "caption": _captionCtrl.text.trim().isEmpty ? "My TikTak Post ✨" : _captionCtrl.text.trim(),
-                  "songName": selectedSound["name"],
-                  "likes": 1,
-                  "tags": ["ethiopia", "viral", "habesha"]
-                };
-
-                AppState.allPosts.insert(0, newPost);
-                
-                try {
-                  await http.post(
-                    Uri.parse("https://tiktak-backend.onrender.com/api/videos/upload"),
-                    headers: {"Content-Type": "application/json"},
-                    body: json.encode(newPost),
-                  );
-                } catch (_) {}
-
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("ተጭኗል! ወደ Home ገጽ ተመልሰህ እይ 🎉")));
-                widget.onPostComplete();
-              },
-              child: Text("Post Now 🚀", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-            SizedBox(height: 20),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

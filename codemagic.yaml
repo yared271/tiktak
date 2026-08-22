@@ -7,17 +7,36 @@ workflows:
       flutter: stable
       java: 17
     scripts:
-      - name: Setup and Build APK
+      - name: Setup project structure and build APK
         script: |
           mkdir -p lib
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
+
           flutter create --platforms=android --org=com.yared.tiktak .
+
           if [ -f "main.dart" ]; then
             cp main.dart lib/main.dart
           fi
-          flutter pub add image_picker video_player http cupertino_icons
-          flutter build apk --debug
+
+          flutter pub add shared_preferences image_picker video_player http cupertino_icons
+
+          echo "flutter.minSdkVersion=21" >> android/local.properties
+
+          python3 -c "
+          import glob
+          for f in glob.glob('android/app/build.gradle*'):
+              with open(f, 'r') as file:
+                  c = file.read()
+              c = c.replace('minSdkVersion flutter.minSdkVersion', 'minSdkVersion 21')
+              c = c.replace('minSdk = flutter.minSdkVersion', 'minSdk = 21')
+              c = c.replace('minSdk = flutter.minSdk', 'minSdk = 21')
+              with open(f, 'w') as file:
+                  file.write(c)
+          "
+
+          flutter build apk --debug --no-tree-shake-icons
+
     artifacts:
       - build/**/outputs/**/*.apk
